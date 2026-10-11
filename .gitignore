@@ -4,3 +4,4 @@ __pycache__/
 .venv/
 highscores.json
 codex.json
+legends.json

@@ -273,4 +273,116 @@ for _cls in g.CLASS_LIST:
     except Exception as e:  # noqa: BLE001
         check(f"{_cls}: kit fires", False, repr(e))
 print("CLASS TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
+
+# --- codex: roster, counts, guards, table ---
+print("--- codex ---")
+import tempfile as _tf
+g.CODEX_FILE = os.path.join(_tf.gettempdir(), "idledragons_test_codex.json")
+try:
+    os.remove(g.CODEX_FILE)
+except OSError:
+    pass
+check("roster is 40 unique", len(g.ROSTER_40) == 40 and len({f for f, _ in g.ROSTER_40}) == 40)
+check("fresh codex empty", g.load_codex() == {"slain": [], "kills": {}})
+check("record new", g.record_boss("Squeakus the Rat King") == (True, 1))
+check("repeat counts", g.record_boss("Squeakus the Rat King") == (False, 1))
+check("non-roster ignored", g.record_boss("Nobody Ever") == (False, 1))
+d = g.load_codex()
+check("kills tallied", d["kills"].get("Squeakus the Rat King") == 2, str(d))
+with open(g.CODEX_FILE, "w") as _f:
+    _f.write('{"slain": ["Squeakus the Rat King"]}')
+check("old format loads", g.load_codex() == {"slain": ["Squeakus the Rat King"], "kills": {}})
+g.codex_table({"slain": ["Squeakus the Rat King"], "kills": {"Squeakus the Rat King": 9}})
+check("codex table renders", True)
+try:
+    os.remove(g.CODEX_FILE)
+except OSError:
+    pass
+print("CODEX TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
+
+# --- gear DEF actually applies (regression: df/DEF case mapping) ---
+print("--- geardef ---")
+h = mkhero("Warrior")
+h["gear"] = {s: None for s in ("Weapon", "Armor", "Trinket", "Ring", "Boots")}
+naked = g.hero_eff(h, "df")
+h["gear"]["Armor"] = g.Item("Armor", "Plate", "Rare", "#5db8ff", {"DEF": 50}, "")
+check("armor DEF applies", g.hero_eff(h, "df") == naked + 50, f"{naked} -> {g.hero_eff(h, 'df')}")
+check("panel shows buffed DEF", g.hero_eff(h, "df") > h["df"])
+h["gear"]["Armor"] = g.Item("Armor", "Moon Plate", "Rare", "#5db8ff", {"DEF": 10}, "Moon")
+h["gear"]["Ring"] = g.Item("Ring", "Moon Band", "Rare", "#5db8ff", {"DEF": 5}, "Moon")
+check("Moon set bonus applies", g.hero_eff(h, "df") == h["df"] + 10 + 5 + 3, str(g.hero_eff(h, "df")))
+for _stat, _want in (("atk", "ATK"), ("df", "DEF"), ("spd", "SPD")):
+    hh = mkhero("Rogue")
+    hh["gear"] = {s: None for s in ("Weapon", "Armor", "Trinket", "Ring", "Boots")}
+    hh["gear"]["Trinket"] = g.Item("Trinket", "Probe", "Common", "white", {_want: 7}, "")
+    check(f"gear {_want} applies via {_stat}", g.hero_eff(hh, _stat) == hh[{"atk": "atk", "df": "df", "spd": "spd"}[_stat]] + 7)
+print("GEARDEF TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
+
+# --- ascension: legends store + Ereboss winnable-but-scary (fixed seed) ---
+print("--- ascension ---")
+import tempfile as _tf2
+g.LEGENDS_FILE = os.path.join(_tf2.gettempdir(), "idledragons_test_legends.json")
+try:
+    os.remove(g.LEGENDS_FILE)
+except OSError:
+    pass
+check("fresh legends empty", g.load_legends() == [])
+g.record_legend({"name": "T", "cls": "Warrior", "level": 42, "turns": 2000, "date": "2026-01-01"})
+check("legend recorded", len(g.load_legends()) == 1)
+g.legends_table(g.load_legends())
+check("legends table renders", True)
+ere = g.make_monster(40, 42, boss=True)
+check("Ereboss fixed stats", (ere.name, ere.level, ere.max_hp, ere.atk, ere.df, ere.spd) ==
+      ("Ereboss the Bottom of Everything", 42, 12000, 330, 140, 30),
+      f"{ere.name} {ere.level} {ere.max_hp}/{ere.atk}/{ere.df}/{ere.spd}")
+
+
+def _god(cls):
+    h = g.make_hero("God", cls)
+    gr = g.CLASSES[cls]["grow"]
+    for _ in range(41):
+        h["max_hp"] += gr["max_hp"]; h["max_mp"] += gr["max_mp"]
+        h["atk"] += gr["atk"]; h["df"] += gr["df"]; h["spd"] += gr["spd"]
+    h["level"] = 42
+    h["gear"]["Weapon"] = g.Item("Weapon", "Godblade", "Legendary", "#ffd700", {"ATK": 140}, "")
+    h["gear"]["Armor"] = g.Item("Armor", "Godplate", "Legendary", "#ffd700", {"DEF": 123, "HP": 525}, "")
+    h["gear"]["Trinket"] = g.Item("Trinket", "Godheart", "Legendary", "#ffd700", {"HP": 701}, "")
+    h["gear"]["Ring"] = g.Item("Ring", "Godband", "Epic", "#d45dff", {"ATK": 30}, "")
+    h["gear"]["Boots"] = g.Item("Boots", "Godtreads", "Epic", "#d45dff", {"DEF": 25}, "")
+    h["hp"] = g.hero_max_hp(h); h["mp"] = g.hero_max_mp(h)
+    h["hp_pots"] = 5; h["mp_pots"] = 5
+    return h
+
+
+def _duel(hero, foe):
+    for _ in range(300):
+        if hero["hp"] < g.hero_max_hp(hero) * 0.35:
+            g.drink_hp(hero)
+        s = g.choose_skill(hero)
+        g.hero_strike(hero, foe, s)
+        if not foe.alive:
+            return True
+        g.foe_strike(foe, hero)
+        g.boss_ability(foe, hero)
+        if hero["hp"] <= 0:
+            return False
+        g.tick_dots(hero, foe)
+        if not foe.alive:
+            return True
+        if hero["hp"] <= 0:
+            return False
+        g.tick_buffs(hero, foe)
+    return False
+
+
+import random as _r2
+_r2.seed(1234)
+for _cls, (_lo, _hi) in (("Warrior", (2, 11)), ("Ranger", (0, 11))):
+    _w = sum(_duel(_god(_cls), g.make_monster(40, 42, boss=True)) for _ in range(12))
+    check(f"Ereboss {_cls} {_lo}..{_hi}/12 (epic, winnable)", _lo <= _w <= _hi, f"{_w}/12")
+try:
+    os.remove(g.LEGENDS_FILE)
+except OSError:
+    pass
+print("ASCENSION TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
 sys.exit(1 if fails else 0)

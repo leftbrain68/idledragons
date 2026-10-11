@@ -17,7 +17,7 @@ pip install . && idledragons
 ```
 
 Optional flags: `--tick SECONDS` (base tick, default 1.0), `--highscores`,
-`--reset-highscores`.
+`--reset-highscores`, `--stats` (run analytics from your local data).
 
 Best on a roomy terminal (≥130 columns, ≥30 rows) — the single-screen
 layout needs the space.
@@ -52,6 +52,9 @@ Your only keys are `Space` (pause), `+`/`-` (speed, 0.5x–8x), `A`
 - **Highscores** in `highscores.json`: depth, level, and what killed you.
   Design target, verified by simulation: **depth 20 / level 20 is a good run**
   (roughly top quartile; every run eventually dies).
+- **Ascension**: slay Ereboss, the Bottom of Everything (depth 40) and get
+  👑 crowned into the Hall of Legends (`legends.json`) — then delve on into
+  the endless dark or retire. Good luck; no simulated hero has made it yet.
 
 ## Develop
 

@@ -24,7 +24,7 @@ import select
 import sys
 import time
 import zlib
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass, field
 
 try:
@@ -48,6 +48,7 @@ except ImportError:  # pragma: no cover
 
 HIGHSCORE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "highscores.json")
 CODEX_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "codex.json")
+LEGENDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "legends.json")
 TICK_DEFAULT = 1.0
 SPEEDS = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0]   # multipliers on the base tick; +/- steps through these
 DEFAULT_SPEED_IDX = 1                      # ...starting at 1x
@@ -638,44 +639,144 @@ def boss_roster() -> list[tuple[str, str]]:
 ROSTER_40 = boss_roster()
 
 
-def load_codex() -> list:
+def load_codex() -> dict:
+    """Codex data: {'slain': [full names], 'kills': {full name: count}}."""
     try:
         with open(CODEX_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            slain = data.get("slain", []) if isinstance(data, dict) else []
-            return [s for s in slain if isinstance(s, str)]
+            if not isinstance(data, dict):
+                return {"slain": [], "kills": {}}
+            slain = [s for s in data.get("slain", []) if isinstance(s, str)]
+            kills = {k: int(v) for k, v in data.get("kills", {}).items()
+                     if isinstance(k, str)}
+            return {"slain": slain, "kills": kills}
     except (FileNotFoundError, json.JSONDecodeError):
-        return []
+        return {"slain": [], "kills": {}}
 
 
 def record_boss(full_name: str) -> tuple[bool, int]:
-    """Record a boss kill. Returns (is_new, total slain). Roster only."""
+    """Record a boss kill (counting repeats). Returns (is_new, unique total)."""
     roster_fulls = {full for full, _ in ROSTER_40}
+    data = load_codex()
     if full_name not in roster_fulls:
-        return False, len(load_codex())
-    slain = load_codex()
-    if full_name in slain:
-        return False, len(slain)
-    slain.append(full_name)
+        return False, len(data["slain"])
+    slain, kills = data["slain"], data["kills"]
+    is_new = full_name not in slain
+    if is_new:
+        slain.append(full_name)
+    kills[full_name] = kills.get(full_name, 0) + 1
     with open(CODEX_FILE, "w", encoding="utf-8") as f:
-        json.dump({"slain": slain}, f, indent=2)
-    return True, len(slain)
+        json.dump({"slain": slain, "kills": kills}, f, indent=2)
+    return is_new, len(slain)
 
 
-def codex_table(slain: list) -> Table:
-    have = set(slain)
-    t = Table(box=box.ROUNDED, show_header=False, padding=(0, 2))
+def codex_table(data: dict) -> Table:
+    have = set(data.get("slain", []))
+    kills = data.get("kills", {})
+    t = Table(box=box.ROUNDED, show_header=False, padding=(0, 1))
     for _ in range(5):
         t.add_column()
     row: list[str] = []
+    # display-length guard: the grid has five columns to share
+    short = {"Vermithrax Pejorative": "Vermithrax"}
     for i, (full, first) in enumerate(ROSTER_40, 1):
-        row.append(f"[gold1]{first}[/]" if full in have else f"[dim]{i} · ???[/]")
+        shown = short.get(first, first)
+        if full in have:
+            n = kills.get(full, 1)
+            cell = f"[gold1]{shown}[/]" + (f" [dim]×{n}[/]" if n > 1 else "")
+        else:
+            cell = f"[dim]{i} · ???[/]"
+        row.append(cell)
         if len(row) == 5:
             t.add_row(*row)
             row = []
     if row:
         t.add_row(*row)
     return t
+
+
+def load_legends() -> list:
+    try:
+        with open(LEGENDS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def record_legend(entry: dict) -> list:
+    legends = load_legends()
+    legends.append(entry)
+    legends.sort(key=lambda e: (-e.get("level", 0), -e.get("turns", 0)))
+    legends = legends[:50]
+    with open(LEGENDS_FILE, "w", encoding="utf-8") as f:
+        json.dump(legends, f, indent=2)
+    return legends
+
+
+def legends_table(legends: list, limit: int = 10) -> Table:
+    t = Table(box=box.ROUNDED, expand=True, show_lines=False)
+    t.add_column("#", width=3, justify="right")
+    t.add_column("Name", style="bold gold1")
+    t.add_column("Class")
+    t.add_column("Level", justify="right")
+    t.add_column("Turns", justify="right")
+    t.add_column("Date", style="dim")
+    for i, e in enumerate(legends[:limit], 1):
+        t.add_row(f"\U0001f451{i}", str(e.get("name", "?")), str(e.get("cls", "?")),
+                  str(e.get("level", 0)), str(e.get("turns", 0)), str(e.get("date", "?")))
+    if not legends:
+        t.add_row("", "[dim]No crowned heroes yet. Ereboss waits.[/]", "", "", "", "")
+    return t
+
+
+def _median(xs: list):
+    if not xs:
+        return None
+    s = sorted(xs)
+    n = len(s)
+    return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
+
+
+def stats_screen(c: Console) -> None:
+    """Run statistics from local highscores + codex."""
+    scores = load_scores()
+    codex = load_codex()
+    c.print(Align.center(Text("— \U0001f4ca RUN STATISTICS —", style="bold cyan")))
+    if not scores:
+        c.print(Align.center(Text("No runs recorded yet. Go die gloriously.", style="dim")))
+        return
+    depths = [s.get("depth", 0) for s in scores]
+    deepest = max(scores, key=lambda s: (s.get("depth", 0), s.get("level", 0)))
+    top_killer, top_kills = Counter(s.get("died_to", "?") for s in scores).most_common(1)[0]
+    top_killer_txt = str(top_killer)[:34] + (f" ×{top_kills}" if top_kills > 1 else "")
+    ov = Table(box=box.ROUNDED, title="Overall")
+    ov.add_column("Measure", style="dim")
+    ov.add_column("Value", justify="right", style="bold white")
+    ov.add_row("Runs recorded", str(len(scores)))
+    ov.add_row("Median depth", str(_median(depths)))
+    ov.add_row("Depth-20 rate", f"{sum(1 for d in depths if d >= 20)}/{len(scores)}")
+    ov.add_row("Deepest delve", f"{deepest.get('name')} · depth {deepest.get('depth')} ({deepest.get('cls')})")
+    ov.add_row("Most common killer", top_killer_txt)
+    ov.add_row("Total turns watched", str(sum(s.get("turns", 0) for s in scores)))
+    ov.add_row("Boss Codex", f"{len(codex['slain'])}/40 · {sum(codex.get('kills', {}).values())} kills")
+    ov.add_row("Legends crowned", str(len(load_legends())))
+    c.print(Align.center(ov))
+    t = Table(box=box.ROUNDED, title="By class")
+    t.add_column("Class", style="bold white")
+    t.add_column("Runs", justify="right")
+    t.add_column("Med depth", justify="right")
+    t.add_column("Best", justify="right")
+    t.add_column("D20%", justify="right")
+    for cn in CLASS_LIST:
+        rows = [s for s in scores if s.get("cls") == cn]
+        if not rows:
+            t.add_row(f"[{CLASSES[cn]['color']}]{cn}[/]", "0", "—", "—", "—")
+            continue
+        ds = [s.get("depth", 0) for s in rows]
+        t.add_row(f"[{CLASSES[cn]['color']}]{cn}[/]", str(len(rows)), str(_median(ds)), str(max(ds)),
+                  f"{sum(1 for d in ds if d >= 20) * 100 // len(rows)}%")
+    c.print(Align.center(t))
 
 
 # --------------------------------------------------------------------------- #
@@ -760,7 +861,8 @@ def worn_sets(hero: dict) -> dict[str, int]:
 
 def hero_eff(hero: dict, stat: str) -> float:
     key = {"atk": "atk", "df": "df", "spd": "spd"}.get(stat, stat)
-    base = hero[key] + gear_bonus(hero, stat.upper())
+    gstat = {"atk": "ATK", "df": "DEF", "spd": "SPD"}.get(stat, stat.upper())
+    base = hero[key] + gear_bonus(hero, gstat)
     if stat in hero["buffs"]:
         base += hero["buffs"][stat][0]
     return max(0, base)
@@ -779,10 +881,11 @@ def hero_max_mp(hero: dict) -> int:
 def make_monster(depth: int, hero_level: int, boss: bool = False) -> Fighter:
     d = dungeon_for_depth(depth)
     # The Deep gets meaner faster than heroes grow: flat for depths 1-2,
-    # then ~2%/level compounded. x1.0 @2, x1.2 @10, x1.4 @20, x1.7 @30.
+    # then ~2.7%/level compounded. x1.0 @2, x1.24 @10, x1.61 @20, x1.85 @30.
+    # (Retuned after armor DEF started working: heroes are sturdier now.)
     # Boss fights stay short (lean HP) but hit harder with depth;
     # attrition, not one-shots, should end runs. Depth 20 = a good run.
-    power = 1.02 ** max(0, depth - 2)
+    power = 1.027 ** max(0, depth - 2)
     tank = power ** 0.5
     elite = False
     if boss:
@@ -799,6 +902,10 @@ def make_monster(depth: int, hero_level: int, boss: bool = False) -> Fighter:
         atk = int((7 + depth * 2.6 + lvl * 1.5) * (1.05 + depth * 0.012) * power)
         df_ = int((4 + depth * 1.8 + lvl * 0.9) * tank)
         spd = int(6 + depth * 0.7 + lvl * 0.3)
+        if depth == 40:
+            # Ereboss is a hand-tuned capstone, not a formula output: epic
+            # but winnable for a well-geared arrival (~15-25 rounds).
+            lvl, hp, atk, df_, spd = 42, 12000, 330, 140, 30
         kind = "boss"
     else:
         name = random.choice(d["mobs"])
@@ -1544,6 +1651,8 @@ def death_screen(c: Console, hero: dict, foe_name: str, scores: list, rank: int)
     c.print(Align.center(Text(f"{hero['name']} the {hero['cls']} · Level {hero['level']} · Depth {hero['depth']} · {hero['turns']} turns",
                               style="dim")))
     c.print(Align.center(Text(f"Slain by {foe_name}", style="italic red")))
+    if hero.get("crowned"):
+        c.print(Align.center(Text("\U0001f451 Crowned in life — a legend either way.", style="bold gold1")))
     c.print()
     stats = Table(box=box.ROUNDED, title="\u2728 Saga summary")
     stats.add_column("Deed", style="dim")
@@ -1559,14 +1668,35 @@ def death_screen(c: Console, hero: dict, foe_name: str, scores: list, rank: int)
     c.print(Align.center(Text(f"— Rank #{rank + 1} in the Hall of Fallen Heroes —", style="bold gold1")))
     c.print(scores_table(scores, highlight=rank))
     c.print()
-    slain = load_codex()
-    c.print(Align.center(Text(f"\U0001f4d6 Boss Codex: {len(slain)}/40", style="bold gold1")))
+    n_codex = len(load_codex()["slain"])
+    c.print(Align.center(Text(f"\U0001f4d6 Boss Codex: {n_codex}/40", style="bold gold1")))
     c.print()
     c.print(Align.center(Text("Press Enter to return to the tavern…", style="dim")))
     try:
         input()
     except (EOFError, KeyboardInterrupt):
         pass
+
+
+def victory_screen(c: Console, hero: dict, legends: list) -> str:
+    """Ascension splash after Ereboss falls. Returns 'continue' or 'retire'."""
+    c.clear()
+    c.print(Align.center(Text("\U0001f451  ASCENSION  \U0001f451", style="bold gold1")))
+    c.print(Align.center(Text(f"{hero['name']} the {hero['cls']} has slain Ereboss, the Bottom of Everything!",
+                              style="bold white")))
+    c.print(Align.center(Text(f"Level {hero['level']} · {hero['turns']} turns · {hero['kills']} kills · {hero['boss_kills']} bosses",
+                              style="dim")))
+    c.print(Align.center(Text("The Deep Dark has no more names for you.", style="italic dim")))
+    c.print()
+    c.print(Align.center(Text("— HALL OF LEGENDS —", style="bold gold1")))
+    c.print(legends_table(legends, limit=10))
+    c.print()
+    c.print(Align.center(Text("[Enter] delve on into the endless dark (41+)    [Q] retire a legend", style="dim")))
+    try:
+        raw = input().strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return "continue"
+    return "retire" if raw in ("q", "quit") else "continue"
 
 
 # --------------------------------------------------------------------------- #
@@ -1626,6 +1756,8 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                 console.clear()
                 console.print("[dim]You slip back to the tavern. The dungeon waits…[/]")
                 console.print(f"[dim]{hero['name']} · Lv{hero['level']} · Depth {depth} (abandoned, not scored)[/]")
+                if hero.get("crowned"):
+                    console.print("[gold1]\U0001f451 You leave crowned — the Hall of Legends remembers.[/]")
                 return True
             elif key == " ":
                 paused = not paused
@@ -1789,6 +1921,23 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                     is_new, n = record_boss(foe.name)
                     if is_new:
                         log.append(f"[bold gold1]\U0001f4d6 Codex: {foe.name} recorded! ({n}/40)[/]")
+                    if depth == 40:
+                        # ASCENSION: Ereboss is dead. Legend first, then choose.
+                        hero["crowned"] = True
+                        legends = record_legend({"name": hero["name"], "cls": hero["cls"],
+                                                 "level": hero["level"], "turns": hero["turns"],
+                                                 "date": datetime.date.today().isoformat()})
+                        live.stop()
+                        if victory_screen(console, hero, legends) == "retire":
+                            save_score({"name": hero["name"], "cls": hero["cls"], "depth": depth,
+                                        "level": hero["level"], "kills": hero["kills"],
+                                        "boss_kills": hero["boss_kills"], "gold": hero["gold"],
+                                        "died_to": "\U0001f451 Crowned, retired", "turns": hero["turns"],
+                                        "date": datetime.date.today().isoformat()})
+                            console.print("[dim]You hang up your sword. The songs will do the rest.[/]")
+                            return
+                        live.start()
+                        log.append("[bold gold1]\U0001f451 Crowned — and still delving. The dark beyond has no names.[/]")
                     state = "rest"
                     rest_left = 4
                     foe = None
@@ -1810,6 +1959,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="IDLEDRAGONS — a DnD terminal idleRPG")
     ap.add_argument("--tick", type=float, default=TICK_DEFAULT, help="seconds per tick (default 1.0)")
     ap.add_argument("--highscores", action="store_true", help="show hall of fallen heroes and exit")
+    ap.add_argument("--stats", action="store_true", help="show run statistics and exit")
     ap.add_argument("--reset-highscores", action="store_true", help="wipe highscores and exit")
     ap.add_argument("--demo", type=int, default=0, metavar="TICKS",
                     help="auto-run N ticks with a random hero (no input needed, for testing)")
@@ -1825,9 +1975,17 @@ def main() -> None:
         console.print(Align.center(Text("— HALL OF FALLEN HEROES —", style="bold gold1")))
         console.print(scores_table(scores, limit=10))
         console.print()
-        slain = load_codex()
-        console.print(Align.center(Text(f"— \U0001f4d6 BOSS CODEX {len(slain)}/40 —", style="bold gold1")))
-        console.print(Align.center(codex_table(slain)))
+        codex = load_codex()
+        total_kills = sum(codex.get("kills", {}).values())
+        console.print(Align.center(Text(f"— \U0001f4d6 BOSS CODEX {len(codex['slain'])}/40 · {total_kills} kills —", style="bold gold1")))
+        console.print(Align.center(codex_table(codex)))
+        console.print()
+        legends = load_legends()
+        console.print(Align.center(Text(f"— \U0001f451 HALL OF LEGENDS {len(legends)} —", style="bold gold1")))
+        console.print(legends_table(legends, limit=5))
+        return
+    if args.stats:
+        stats_screen(console)
         return
 
     if args.demo:

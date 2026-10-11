@@ -9,6 +9,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import idlerpg as g
 
 HS = os.path.join(tempfile.gettempdir(), "idledragons_sim_hs.json")
+CX = os.path.join(tempfile.gettempdir(), "idledragons_sim_cx.json")
+LG = os.path.join(tempfile.gettempdir(), "idledragons_sim_lg.json")
 
 # Kill all UI overhead: dummy Live, silent death screen, hero snapshot spy.
 class DummyLive:
@@ -37,6 +39,8 @@ for cls in g.CLASS_LIST:
         if os.path.exists(HS):
             os.remove(HS)
         g.HIGHSCORE_FILE = HS
+        g.CODEX_FILE = CX
+        g.LEGENDS_FILE = LG
         snap.clear()
         random.seed(10_000 + seed)
         g.run_game("Sim", cls, tick=0, demo_ticks=CAP)
