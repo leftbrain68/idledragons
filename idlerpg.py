@@ -47,6 +47,8 @@ except ImportError:  # pragma: no cover
 
 HIGHSCORE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "highscores.json")
 TICK_DEFAULT = 1.0
+SPEEDS = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0]   # multipliers on the base tick; +/- steps through these
+DEFAULT_SPEED_IDX = 1                      # ...starting at 1x
 ROOMS_PER_LEVEL = 5          # normal fights per dungeon level, then the boss
 MAX_LOG = 9
 MAX_POTIONS_BASE = 3
@@ -371,10 +373,28 @@ def scores_table(scores: list, highlight: int = -1, limit: int = 10) -> Table:
 # Hero + monster factories
 # --------------------------------------------------------------------------- #
 
+# Every hero starts with humble Common starter gear (quickly outgrown,
+# but nobody faces the Cellar bare-handed).
+STARTER_GEAR: dict[str, list[tuple[str, str, dict]]] = {
+    "Warrior": [("Weapon", "Worn Shortsword", {"ATK": 2}),
+                ("Armor", "Dented Jerkin", {"DEF": 2}),
+                ("Trinket", "Soldier's Lucky Coin", {"HP": 6})],
+    "Rogue":   [("Weapon", "Chipped Dagger", {"ATK": 2}),
+                ("Armor", "Patchwork Cloak", {"DEF": 1}),
+                ("Trinket", "Cat's-Eye Marble", {"SPD": 1})],
+    "Cleric":  [("Weapon", "Plain Mace", {"ATK": 2}),
+                ("Armor", "Initiate Robes", {"DEF": 2}),
+                ("Trinket", "Wooden Holy Symbol", {"MP": 6})],
+    "Wizard":  [("Weapon", "Cracked Oak Staff", {"ATK": 2}),
+                ("Armor", "Frayed Apprentice Robes", {"DEF": 1}),
+                ("Trinket", "Faded Cantrip Scroll", {"MP": 8})],
+}
+
+
 def make_hero(name: str, cls: str) -> dict:
     c = CLASSES[cls]
     b = c["base"]
-    return {
+    hero = {
         "name": name, "cls": cls, "level": 1, "xp": 0,
         "max_hp": b["max_hp"], "hp": b["max_hp"],
         "max_mp": b["max_mp"], "mp": b["max_mp"],
@@ -385,6 +405,12 @@ def make_hero(name: str, cls: str) -> dict:
         "cds": {}, "buffs": {}, "dots": [],
         "kills": 0, "boss_kills": 0, "turns": 0, "potions_used": 0,
     }
+    for slot, gname, bonus in STARTER_GEAR[cls]:
+        hero["gear"][slot] = Item(slot, gname, "Common", "white", bonus)
+    # Top off vitals in case a starter trinket grants HP/MP.
+    hero["hp"] = hero_max_hp(hero)
+    hero["mp"] = hero_max_mp(hero)
+    return hero
 
 
 def gear_bonus(hero: dict, stat: str) -> int:
@@ -789,7 +815,7 @@ def arena_panel(depth: int, room: int, boss_room: bool, turn: int, state: str) -
     return Panel(Align.center(lines), title="\U0001f5fa\ufe0f Whereabouts", border_style=d["color"], box=box.ROUNDED)
 
 
-def skills_panel(hero: dict, paused: bool, tick: float, auto_pots: bool) -> Panel:
+def skills_panel(hero: dict, paused: bool, speed: float, base_tick: float, auto_pots: bool) -> Panel:
     t = Table(box=None, show_header=False, padding=(0, 1), expand=True)
     t.add_column(width=16)
     t.add_column()
@@ -805,7 +831,7 @@ def skills_panel(hero: dict, paused: bool, tick: float, auto_pots: bool) -> Pane
             t.add_row(f"[white]{s.icon} {s.name}[/]", f"[dim]{s.mp}MP[/]" if s.mp else "[green]ready[/]")
     t.add_row("", "")
     t.add_row("[dim][P]HP-pot  [M]MP-pot[/]", "[dim][Space]pause  [Q]quit[/]")
-    t.add_row(f"[dim]speed {tick:.1f}s [+/-][/]", "[green]AUTO-POTS ON[/]" if auto_pots else "[red]AUTO-POTS OFF [A][/]")
+    t.add_row(f"[dim]speed {speed:g}x ({base_tick / speed:.2f}s) [+/-][/]", "[green]AUTO-POTS ON[/]" if auto_pots else "[red]AUTO-POTS OFF [A][/]")
     if paused:
         t.add_row("[bold yellow]\u23f8\ufe0f PAUSED[/]", "")
     return Panel(t, title="\u2728 Skills & Keys", border_style="cyan", box=box.ROUNDED)
@@ -819,7 +845,7 @@ def log_panel(log: deque) -> Panel:
     return Panel(txt, title="\U0001f4dc Chronicle", border_style="#8a7a6a", box=box.ROUNDED)
 
 
-def build_layout(hero, foe, log, depth, room, boss_room, turn, tick, paused, auto_pots, state) -> Layout:
+def build_layout(hero, foe, log, depth, room, boss_room, turn, speed, base_tick, paused, auto_pots, state) -> Layout:
     lay = Layout()
     lay.split_column(
         Layout(name="head", size=3),
@@ -848,7 +874,7 @@ def build_layout(hero, foe, log, depth, room, boss_room, turn, tick, paused, aut
     lay["center"].update(arena_panel(depth, room, boss_room, turn, state))
     lay["right"].update(foe_panel(foe, depth, room, boss_room))
     lay["log"].update(log_panel(log))
-    lay["sk"].update(skills_panel(hero, paused, tick, auto_pots))
+    lay["sk"].update(skills_panel(hero, paused, speed, base_tick, auto_pots))
     return lay
 
 
@@ -995,6 +1021,8 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
     c = CLASSES[cls]
     log.append(f"[bold {c['color']}]\U0001f388 {name}, {cls} of the {random.choice(['Silver Marches','Dalelands','Sword Coast','Underdark Exiles'])}[/], enters the dark.")
     log.append(f"[dim]{D20} The innkeep wishes thee luck. Potions stocked: {hero['hp_pots']}HP/{hero['mp_pots']}MP.[/]")
+    kit = ", ".join(hero["gear"][s].name for s in ("Weapon", "Armor", "Trinket"))
+    log.append(f"[dim]\U0001f455 Starter kit issued: {kit}. Try not to bleed on it.[/]")
 
     depth = 1
     room = 1
@@ -1005,7 +1033,8 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
     turn = 0
     paused = False
     auto_pots = True
-    cur_tick = tick
+    base_tick = tick
+    speed_idx = DEFAULT_SPEED_IDX
     demo_left = demo_ticks
 
     def new_foe() -> Fighter:
@@ -1022,11 +1051,11 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
     foe = new_foe()
 
     with Keyboard() as kb, Live(build_layout(hero, foe, log, depth, room, boss_room, turn,
-                                             cur_tick, paused, auto_pots, state),
+                                             SPEEDS[speed_idx], base_tick, paused, auto_pots, state),
                                 console=console, refresh_per_second=8, screen=True) as live:
         def handle_key(key: str | None) -> bool:
             """Process one keypress. Returns True if the run should quit."""
-            nonlocal paused, auto_pots, cur_tick
+            nonlocal paused, auto_pots, speed_idx
             if not key:
                 return False
             if key in ("q", "\x03"):
@@ -1049,11 +1078,17 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                 auto_pots = not auto_pots
                 log.append("[green]Auto-potions ON.[/]" if auto_pots else "[yellow]Auto-potions OFF.[/]")
             elif key in ("+", "="):
-                cur_tick = max(0.15, round(cur_tick - 0.15, 2))
-                log.append(f"[cyan]⏩ Speed up! Tick = {cur_tick:.2f}s.[/]")
+                if speed_idx < len(SPEEDS) - 1:
+                    speed_idx += 1
+                    log.append(f"[cyan]⏩ Speed: {SPEEDS[speed_idx]:g}x ({base_tick / SPEEDS[speed_idx]:.2f}s/tick).[/]")
+                else:
+                    log.append("[dim]⏩ Already at max speed.[/]")
             elif key in ("-", "_"):
-                cur_tick = min(3.0, round(cur_tick + 0.15, 2))
-                log.append(f"[cyan]⏪ Slow down… Tick = {cur_tick:.2f}s.[/]")
+                if speed_idx > 0:
+                    speed_idx -= 1
+                    log.append(f"[cyan]⏪ Speed: {SPEEDS[speed_idx]:g}x ({base_tick / SPEEDS[speed_idx]:.2f}s/tick).[/]")
+                else:
+                    log.append("[dim]⏪ Already at slowest.[/]")
             return False
 
         def drain_keys() -> bool:
@@ -1073,18 +1108,18 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
 
             if paused:
                 live.update(build_layout(hero, foe, log, depth, room, boss_room, turn,
-                                         cur_tick, paused, auto_pots, state))
+                                         SPEEDS[speed_idx], base_tick, paused, auto_pots, state))
                 time.sleep(0.1)
                 continue
 
             t0 = time.time()
-            time.sleep(cur_tick)
+            time.sleep(base_tick / SPEEDS[speed_idx])
             # keys pressed during sleep — same handler, nothing dropped
             if drain_keys():
                 return
             if paused:
                 live.update(build_layout(hero, foe, log, depth, room, boss_room, turn,
-                                         cur_tick, paused, auto_pots, state))
+                                         SPEEDS[speed_idx], base_tick, paused, auto_pots, state))
                 continue
 
             turn += 1
@@ -1119,7 +1154,7 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                     log.append(f"[bold {d['color']}]\U0001f53b Descending… {d['icon']} {d['name']}[/] [dim]— {d['desc']}[/]")
                     foe = new_foe()
                 live.update(build_layout(hero, foe if state == "combat" else None, log, depth, room,
-                                         boss_room, turn, cur_tick, paused, auto_pots, state))
+                                         boss_room, turn, SPEEDS[speed_idx], base_tick, paused, auto_pots, state))
                 if demo_left and (demo_left := demo_left - 1) <= 0:
                     return
                 continue
@@ -1201,7 +1236,7 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                     foe = new_foe()
 
             live.update(build_layout(hero, foe, log, depth, room, boss_room, turn,
-                                     cur_tick, paused, auto_pots, state))
+                                     SPEEDS[speed_idx], base_tick, paused, auto_pots, state))
             if demo_left and (demo_left := demo_left - 1) <= 0:
                 return
 
