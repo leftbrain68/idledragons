@@ -30,7 +30,8 @@ from dataclasses import dataclass, field
 try:
     from rich import box
     from rich.align import Align
-    from rich.console import Console, Group
+    from rich.columns import Columns
+    from rich.console import Console
     from rich.layout import Layout
     from rich.live import Live
     from rich.panel import Panel
@@ -206,6 +207,46 @@ CREATURE_TYPES = {
     "Undead": "#9a9a9a",
 }
 
+# Short mechanic reminder per type, shown in the monster panel.
+TRAIT_BLURB = {
+    "Aberration": "your crits -5",
+    "Beast": "+4 dodge",
+    "Dragon": "fiery breath",
+    "Elemental": "ignores slow",
+    "Fiend": "rebukes crits",
+    "Giant": "sweeping blows",
+    "Humanoid": "fat purse",
+    "Monstrosity": "+5 crit",
+    "Plant": "burns easily",
+    "Undead": "no venom",
+}
+
+# Flavor per type; named bosses of note get their own line.
+TYPE_BLURB = {
+    "Aberration": "It should not be. Do not meet its eyes.",
+    "Beast": "Teeth, hunger, and no malice at all.",
+    "Dragon": "Fire made flesh, and proud of it.",
+    "Elemental": "The world, angry and ambulatory.",
+    "Fiend": "It collects. Souls preferred.",
+    "Giant": "The ground notices when it walks.",
+    "Humanoid": "Cruel in the clever way.",
+    "Monstrosity": "Nature's rough draft, armed.",
+    "Plant": "It photosynthesizes. It also plots.",
+    "Undead": "Death was a suggestion.",
+}
+
+BOSS_BLURBS = {
+    "Squeakus": "A thousand rats. One crown. Zero mercy.",
+    "Griznak": "Lost an eye. Found a grudge.",
+    "Mother Mycelia": "The bloom that hungers.",
+    "Lord Vexmar": "Twice-buried, still collecting rent.",
+    "Cinder Maw": "The furnace, given teeth.",
+    "Vexalyth": "Eighth House. First knife.",
+    "Sussurax": "The wing that splits clouds.",
+    "Vermithrax Pejorative": "The Hoardfather counts your bones already.",
+    "Ereboss": "That which waits below. It is done waiting.",
+}
+
 MOB_TYPES = {
     "Cellar Rat": "Beast", "Giant Centipede": "Beast",
     "Kobold Sneak": "Humanoid", "Cave Bat Swarm": "Beast",
@@ -250,6 +291,93 @@ MOB_TYPES = {
     "Death Knight": "Undead", "Balor Spawn": "Fiend",
     "Elder Wyrm": "Dragon", "Void Titan": "Aberration",
 }
+
+# One icon per monster for the foe panel title (unique within its dungeon;
+# duplicates across far-apart dungeons are fine — bats look alike).
+MOB_ICONS = {
+    "Cellar Rat": "\U0001f400", "Giant Centipede": "\U0001f41b",
+    "Kobold Sneak": "\U0001f98e", "Cave Bat Swarm": "\U0001f987",
+    "Goblin Cutter": "\U0001f5e1", "Goblin Slinger": "\U0001f3f9",
+    "Worg Pup": "\U0001f43a", "Hobgoblin Grunt": "\U0001f479",
+    "Myconid Sprout": "\U0001f344", "Spore Bat": "\U0001f987",
+    "Cave Fisher": "\U0001f3a3", "Gas Spore": "\U0001f4a8",
+    "Skeleton Warrior": "\U0001f480", "Drowned Zombie": "\U0001f9df",
+    "Crypt Ghoul": "\U0001f47b", "Wight Acolyte": "\U0001f9db",
+    "Magma Mephit": "\U0001f525", "Fire Snake": "\U0001f40d",
+    "Ash Zombie": "\U0001f9df", "Duergar Deserter": "\u26cf",
+    "Giant Spider": "\U0001f577", "Drow Scout": "\U0001f977",
+    "Drider Spawn": "\U0001f578", "Shadow Mastiff": "\U0001f43a",
+    "Air Elemental Wisp": "✨", "Gargoyle": "\U0001f5ff",
+    "Kenku Stormcaller": "\U0001f426", "Blue Dragon Wyrmling": "\U0001f409",
+    "Ogre Brute": "\U0001f44a", "Troll Regenerator": "\U0001f9cc",
+    "Mind Flayer Exile": "\U0001f9e0", "Young Red Dragon": "\U0001f432",
+    "Depth Horror": "\U0001f441", "Starved Abomination": "\U0001f37d",
+    "Whisper Spawn": "\U0001f32b", "Chitin Stalker": "\U0001fab2",
+    "Silt Crab": "\U0001f980", "Drowned Sailor": "⚓",
+    "Brine Hag": "\U0001f9d9", "Wreck Revenant": "\U0001f30a",
+    "Cinder Imp": "\U0001f608", "Ash Serpent": "\U0001f40d",
+    "Charred Husk": "\U0001f32b", "Slag Golem": "\U0001faa8",
+    "Nothic Whisperer": "\U0001f9ff", "Choker": "\U0001f4aa",
+    "Darkmantle": "\U0001f302", "Grell": "\U0001fabc",
+    "Ice Mephit": "\U0001f9ca", "Frost Wight": "❄️",
+    "Winter Wolf": "\U0001f43a", "Yeti": "⛄",
+    "Lemure": "\U0001fae0", "Spined Devil": "\U0001f994",
+    "Hell Hound": "\U0001f525", "Ashen Cultist": "\U0001f56f",
+    "Hill Giant": "\U0001faa8", "Stone Giant": "\U0001f5ff",
+    "Wyvern": "\U0001f426", "Griffon": "\U0001f985",
+    "Beholderkin": "\U0001f441", "Intellect Devourer": "\U0001f9e0",
+    "Cloaker": "\U0001f302", "Aboleth Spawn": "\U0001f991",
+    "Death Knight": "\U0001f480", "Balor Spawn": "\U0001f525",
+    "Elder Wyrm": "\U0001f432", "Void Titan": "\U0001f30c",
+}
+
+BOSS_ICONS = {
+    "Squeakus": "\U0001f400", "Griznak": "\U0001f47a",
+    "Mother Mycelia": "\U0001f344", "Lord Vexmar": "\U0001f480",
+    "Cinder Maw": "\U0001f30b", "Vexalyth": "\U0001f578",
+    "Sussurax": "\U0001f329", "Vermithrax Pejorative": "\U0001f432",
+    "Tharzarr": "\U0001f441", "Drakphage": "\U0001f409",
+    "Yxmirax": "\U0001f300", "Balgore": "\U0001f608",
+    "Oomzarr": "\U0001f9db", "Kharvex": "\U0001f479",
+    "Zulphage": "\U0001fa78", "Tharquam": "\U0001f987",
+    "Mordrex": "\U0001fab0", "Vexmorth": "\U0001f311",
+    "Skarlith": "\U0001f525", "Xarzoth": "\U0001f451",
+    "Balzoth": "⚰️", "Oomthune": "\U0001f3b5",
+    "Yxquath": "\U0001f444", "Tharzoth": "\U0001f30a",
+    "Vexmirax": "\U0001f409", "Drakovex": "⛓️",
+    "Skardrex": "❄️", "Morgath": "\U0001f50a",
+    "Kharzarr": "\U0001f3f0", "Thulzarr": "\U0001f32a",
+    "Yxlim": "\U0001f90f", "Drexbal": "⚒️",
+    "Vexthune": "\U0001f3bb", "Skalphage": "\U0001f5fa",
+    "Oomgore": "\U0001f534", "Balqua": "\U0001f4a7",
+    "Zulmorth": "⏳", "Kharqua": "\U0001f6aa",
+    "Drextharr": "✨", "Ereboss": "\U0001f30c",
+}
+
+TYPE_ICONS = {
+    "Aberration": "\U0001f441", "Beast": "\U0001f43e", "Dragon": "\U0001f432",
+    "Elemental": "\U0001f300", "Fiend": "\U0001f608", "Giant": "⛰️",
+    "Humanoid": "\U0001f464", "Monstrosity": "\U0001f996", "Plant": "\U0001f33f",
+    "Undead": "\U0001f480",
+}
+
+
+def foe_icon(foe: Fighter) -> str:
+    """Portrait emoji: boss by name, mob by name, else by creature type."""
+    if foe.kind == "boss":
+        for key, icon in BOSS_ICONS.items():
+            if foe.name.startswith(key):
+                return icon
+    else:
+        base = foe.name
+        for pre in ("Elder ", "Alpha ", "Dire "):
+            if base.startswith(pre):
+                base = base[len(pre):]
+                break
+        if base in MOB_ICONS:
+            return MOB_ICONS[base]
+    return TYPE_ICONS.get(foe.ctype, "\U0001f479")
+
 
 BOSS_TYPES = {
     "Squeakus": "Beast", "Griznak": "Humanoid",
@@ -607,8 +735,8 @@ def save_score(entry: dict) -> list:
     return scores
 
 
-def scores_table(scores: list, highlight: int = -1, limit: int = 10) -> Table:
-    t = Table(box=box.ROUNDED, expand=True, show_lines=False)
+def scores_table(scores: list, highlight: int = -1, limit: int = 10, expand: bool = True) -> Table:
+    t = Table(box=box.ROUNDED, expand=expand, show_lines=False)
     t.add_column("#", width=3, justify="right")
     t.add_column("Name", style="bold white")
     t.add_column("Class")
@@ -670,15 +798,15 @@ def record_boss(full_name: str) -> tuple[bool, int]:
     return is_new, len(slain)
 
 
-def codex_table(data: dict) -> Table:
+def codex_table(data: dict, cols: int = 10) -> Table:
     have = set(data.get("slain", []))
     kills = data.get("kills", {})
     t = Table(box=box.ROUNDED, show_header=False, padding=(0, 1))
-    for _ in range(5):
+    for _ in range(cols):
         t.add_column()
     row: list[str] = []
-    # display-length guard: the grid has five columns to share
-    short = {"Vermithrax Pejorative": "Vermithrax"}
+    # display-length guard: long names abbreviate to share columns
+    short = {"Vermithrax Pejorative": "Vermithrax", "Mother Mycelia": "M. Mycelia"}
     for i, (full, first) in enumerate(ROSTER_40, 1):
         shown = short.get(first, first)
         if full in have:
@@ -687,7 +815,7 @@ def codex_table(data: dict) -> Table:
         else:
             cell = f"[dim]{i} · ???[/]"
         row.append(cell)
-        if len(row) == 5:
+        if len(row) == cols:
             t.add_row(*row)
             row = []
     if row:
@@ -714,8 +842,8 @@ def record_legend(entry: dict) -> list:
     return legends
 
 
-def legends_table(legends: list, limit: int = 10) -> Table:
-    t = Table(box=box.ROUNDED, expand=True, show_lines=False)
+def legends_table(legends: list, limit: int = 10, expand: bool = True) -> Table:
+    t = Table(box=box.ROUNDED, expand=expand, show_lines=False)
     t.add_column("#", width=3, justify="right")
     t.add_column("Name", style="bold gold1")
     t.add_column("Class")
@@ -824,33 +952,38 @@ def stats_screen(c: Console) -> None:
     deepest = max(scores, key=lambda s: (s.get("depth", 0), s.get("level", 0)))
     top_killer, top_kills = Counter(s.get("died_to", "?") for s in scores).most_common(1)[0]
     top_killer_txt = str(top_killer)[:34] + (f" ×{top_kills}" if top_kills > 1 else "")
-    ov = Table(box=box.ROUNDED, title="Overall")
+    wide = c.width >= 110
+    ov = Table(box=box.ROUNDED, title="Overall", expand=not wide)
     ov.add_column("Measure", style="dim")
     ov.add_column("Value", justify="right", style="bold white")
     ov.add_row("Runs recorded", str(len(scores)))
     ov.add_row("Median depth", str(_median(depths)))
     ov.add_row("Depth-20 rate", f"{sum(1 for d in depths if d >= 20)}/{len(scores)}")
+    ov.add_row("Depth-40 rate", f"{sum(1 for d in depths if d >= 40)}/{len(scores)}")
     ov.add_row("Deepest delve", f"{deepest.get('name')} · depth {deepest.get('depth')} ({deepest.get('cls')})")
     ov.add_row("Most common killer", top_killer_txt)
     ov.add_row("Total turns watched", str(sum(s.get("turns", 0) for s in scores)))
-    ov.add_row("Boss Codex", f"{len(codex['slain'])}/40 · {sum(codex.get('kills', {}).values())} kills")
-    ov.add_row("Legends crowned", str(len(load_legends())))
-    c.print(Align.center(ov))
-    t = Table(box=box.ROUNDED, title="By class")
+    t = Table(box=box.ROUNDED, title="By class", expand=not wide)
     t.add_column("Class", style="bold white")
     t.add_column("Runs", justify="right")
     t.add_column("Med depth", justify="right")
     t.add_column("Best", justify="right")
     t.add_column("D20%", justify="right")
+    t.add_column("D40%", justify="right")
     for cn in CLASS_LIST:
         rows = [s for s in scores if s.get("cls") == cn]
         if not rows:
-            t.add_row(f"[{CLASSES[cn]['color']}]{cn}[/]", "0", "—", "—", "—")
+            t.add_row(f"[{CLASSES[cn]['color']}]{cn}[/]", "0", "—", "—", "—", "—")
             continue
         ds = [s.get("depth", 0) for s in rows]
         t.add_row(f"[{CLASSES[cn]['color']}]{cn}[/]", str(len(rows)), str(_median(ds)), str(max(ds)),
-                  f"{sum(1 for d in ds if d >= 20) * 100 // len(rows)}%")
-    c.print(Align.center(t))
+                  f"{sum(1 for d in ds if d >= 20) * 100 // len(rows)}%",
+                  f"{sum(1 for d in ds if d >= 40) * 100 // len(rows)}%")
+    if c.width >= 110:
+        c.print(Align.center(Columns([ov, t], equal=False, expand=False)))
+    else:
+        c.print(Align.center(ov))
+        c.print(Align.center(t))
 
 
 # --------------------------------------------------------------------------- #
@@ -1182,18 +1315,18 @@ TYPE_ARTS = {
 }
 
 
+def boss_art_for(foe: Fighter) -> dict | None:
+    """Signature move for a boss: handcrafted by name, else by creature type."""
+    for key, candidate in BOSS_ARTS.items():
+        if foe.name.startswith(key):
+            return candidate
+    return TYPE_ARTS.get(foe.ctype)
+
+
 def boss_ability(foe: Fighter, hero: dict) -> list[str]:
     """One boss signature move, if its cooldown and the dice allow."""
     out: list[str] = []
-    # handcrafted bosses keyed by first name ("Mother Mycelia" matches
-    # "Mother Mycelia the Bloom That Hungers"); deep bosses by type.
-    art = None
-    for key, candidate in BOSS_ARTS.items():
-        if foe.name.startswith(key):
-            art = candidate
-            break
-    if art is None:
-        art = TYPE_ARTS.get(foe.ctype)
+    art = boss_art_for(foe)
     if art is None or foe.cds.get("art", 0) > 0:
         return out
     kind = art["kind"]
@@ -1456,7 +1589,9 @@ def hero_panel(hero: dict) -> Panel:
         set_txt = f" [gold1]⟪{it.set_name}⟫[/]" if it.set_name else ""
         return f"[{it.color}]{it.name}[/]{set_txt} [dim]{b}[/]"
     sets = worn_sets(hero)
-    set_txt = " ".join(f"[gold1]⟪{s}⟫×{n}[/]" for s, n in sets.items()) or "[dim]—[/]"
+    set_txt = " ".join(
+        f"[gold1]⟪{s}⟫×{n}[/] [dim]({' '.join(f'{v:+}{k}' for k, v in SET_BONUS.get(s, {}).items())})[/]"
+        for s, n in sets.items()) or "[dim]—[/]"
 
     body = Table(box=None, show_header=False, padding=(0, 1), expand=True)
     body.add_column(style="dim", width=5)
@@ -1496,12 +1631,31 @@ def foe_panel(foe: Fighter | None, depth: int, room: int, boss_room: bool) -> Pa
     body.add_row("LV", f"[bold]{foe.level}[/]{tag}{dots}{debuff}")
     body.add_row("HP", f"[{hp_color(p)}]{bar(foe.hp, foe.max_hp, 14)}[/] [bold]{foe.hp}/{foe.max_hp}[/]")
     body.add_row("DMG", f"[red]{int(foe.eff('atk'))}[/]   ARM {int(foe.eff('df'))}   SPD {int(foe.eff('spd'))}")
+    if foe.kind == "boss":
+        art = boss_art_for(foe)
+    else:
+        art = None
+    body.add_row("MOVE", f"{art['icon']} {art['art']}" if art else "[dim]none[/]")
+    if foe.ctype in TRAIT_BLURB:
+        body.add_row("TRAIT", f"[dim]{TRAIT_BLURB[foe.ctype]}[/]")
+    else:
+        body.add_row("TRAIT", "[dim]none[/]")
+    desc = None
+    if foe.kind == "boss":
+        for key, blurb in BOSS_BLURBS.items():
+            if foe.name.startswith(key):
+                desc = blurb
+                break
+    if desc is None:
+        desc = TYPE_BLURB.get(foe.ctype, "")
+    if desc:
+        body.add_row("", f"[dim italic]{desc}[/]")
     style = "bold red" if foe.kind == "boss" else "red"
     room_txt = "BOSS" if boss_room else f"{room}/{ROOMS_PER_LEVEL}"
     tcolor = CREATURE_TYPES.get(foe.ctype, "white")
     tlabel = f"[{tcolor}]{foe.ctype}[/]" if foe.ctype else ""
     etag = " [bold magenta]\u2b50ELITE[/]" if foe.elite else ""
-    return Panel(body, title=f"[{style}]\U0001f479 {foe.name}[/] [dim]· Lv{foe.level} · {room_txt}[/] {tlabel}{etag}",
+    return Panel(body, title=f"[{style}]{foe_icon(foe)} {foe.name}[/] [dim]· Lv{foe.level} · {room_txt}[/] {tlabel}{etag}",
                  border_style="red" if foe.kind == "boss" else "#8a7a6a", box=box.ROUNDED)
 
 
@@ -1531,21 +1685,24 @@ def arena_panel(depth: int, room: int, boss_room: bool, turn: int, state: str) -
             cells.append("[dim]·[/]")
     cells.append("[black on yellow] \U0001f479 [/]" if boss_room else "[dim]\U0001f479[/]")
     lines.append_text(Text.from_markup("─".join(cells) + "\n"))
-    # depth trail with the ★20 goal
+    # depth trail with the goals (position says it all: left is statue row,
+    # right is uncharted; the markers would only cost width)
     trail = []
     for dd in range(max(1, depth - 2), depth + 3):
-        if dd < depth:
-            trail.append(f"[green]{dd}✓[/]")
-        elif dd == depth:
+        if dd == depth:
             trail.append(f"[black on yellow] {dd} [/]")
         else:
-            trail.append(f"[dim]{dd}·[/]")
+            trail.append(f"[dim]{dd}[/]")
     if depth < 20:
-        goal = "  [gold1]★20 good run[/]"
+        goal = "  [gold1]★20[/] [dim]\U0001f45140[/]"
     elif depth == 20:
-        goal = "  [bold gold1]★20![/]"
+        goal = "  [bold gold1]★20![/] [dim]\U0001f45140[/]"
+    elif depth < 40:
+        goal = "  [gold1]★20✓[/] [dim]\U0001f45140[/]"
+    elif depth == 40:
+        goal = "  [gold1]★20✓[/] [bold gold1]\U0001f45140![/]"
     else:
-        goal = "  [gold1]★20 ✓[/]"
+        goal = "  [gold1]★20✓ \U0001f45140✓[/]"
     lines.append_text(Text.from_markup(" ".join(trail) + goal))
     return Panel(Align.center(lines), title="\U0001f5fa\ufe0f Whereabouts", border_style=d["color"], box=box.ROUNDED)
 
@@ -2098,18 +2255,15 @@ def main() -> None:
         return
     if args.highscores:
         scores = load_scores()
-        console.print(Align.center(Text("— HALL OF FALLEN HEROES —", style="bold gold1")))
-        console.print(scores_table(scores, limit=10))
-        console.print()
         codex = load_codex()
         total_kills = sum(codex.get("kills", {}).values())
-        console.print(Align.center(Text(f"— \U0001f4d6 BOSS CODEX {len(codex['slain'])}/40 · {total_kills} kills —", style="bold gold1")))
-        console.print(Align.center(codex_table(codex)))
-        console.print()
         legends = load_legends()
+        console.print(Align.center(Text("— HALL OF FALLEN HEROES —", style="bold gold1")))
+        console.print(scores_table(scores, limit=5))
         console.print(Align.center(Text(f"— \U0001f451 HALL OF LEGENDS {len(legends)} —", style="bold gold1")))
         console.print(legends_table(legends, limit=5))
-        console.print()
+        console.print(Align.center(Text(f"— \U0001f4d6 BOSS CODEX {len(codex['slain'])}/40 · {total_kills} kills —", style="bold gold1")))
+        console.print(Align.center(codex_table(codex, cols=10 if console.width >= 120 else 5)))
         stats_screen(console)
         return
     if args.stats:

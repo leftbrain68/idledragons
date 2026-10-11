@@ -432,4 +432,32 @@ except Exception as e:  # noqa: BLE001
 finally:
     g.Live = _old_live
 print("SUSPEND TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
+
+# --- monster panel: arts, traits, flavor ---
+print("--- monster panel ---")
+from rich.console import Console as _C
+_art_names = {"Squeakus": "Summon the Brood", "Griznak": "War Drum",
+              "Mother Mycelia": "Spore Cloud", "Lord Vexmar": "Soul Siphon",
+              "Cinder Maw": "Magma Hide", "Vexalyth": "Shadow Web",
+              "Sussurax": "Stormcall", "Vermithrax Pejorative": "Hoardfire"}
+for _depth in range(1, 9):
+    _b = g.make_monster(_depth, 5, boss=True)
+    _want = None
+    for _k, _v in _art_names.items():
+        if _b.name.startswith(_k):
+            _want = _v
+    _art = g.boss_art_for(_b)
+    check(f"boss art {_depth}", _art is not None and _art["art"] == _want, f"{_b.name} -> {_art}")
+_c = _C(width=44, record=True)
+_c.print(g.foe_panel(g.make_monster(1, 1, boss=True), 1, 1, True))
+_txt = _c.export_text()
+check("panel shows ART", "Summon the Brood" in _txt)
+check("panel shows TRAIT", "+4 dodge" in _txt)
+check("panel shows flavor", "thousand rats" in _txt)
+_c2 = _C(width=44, record=True)
+_c2.print(g.foe_panel(g.make_monster(4, 5), 4, 2, False))
+_txt2 = _c2.export_text()
+check("mob shows trait+flavor, no ART", "no venom" in _txt2 and "Death was a suggestion" in _txt2
+      and "ART" not in _txt2)
+print("PANEL TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
 sys.exit(1 if fails else 0)
