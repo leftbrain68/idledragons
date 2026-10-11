@@ -1749,6 +1749,8 @@ def death_screen(c: Console, hero: dict, foe_name: str, scores: list, rank: int)
     n_codex = len(load_codex()["slain"])
     c.print(Align.center(Text(f"\U0001f4d6 Boss Codex: {n_codex}/40", style="bold gold1")))
     c.print()
+    stats_screen(c)
+    c.print()
     c.print(Align.center(Text("Press Enter to return to the tavern…", style="dim")))
     try:
         input()
@@ -2107,6 +2109,8 @@ def main() -> None:
         legends = load_legends()
         console.print(Align.center(Text(f"— \U0001f451 HALL OF LEGENDS {len(legends)} —", style="bold gold1")))
         console.print(legends_table(legends, limit=5))
+        console.print()
+        stats_screen(console)
         return
     if args.stats:
         stats_screen(console)
