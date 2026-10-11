@@ -47,6 +47,7 @@ except ImportError:  # pragma: no cover
 # --------------------------------------------------------------------------- #
 
 HIGHSCORE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "highscores.json")
+CODEX_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "codex.json")
 TICK_DEFAULT = 1.0
 SPEEDS = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0]   # multipliers on the base tick; +/- steps through these
 DEFAULT_SPEED_IDX = 1                      # ...starting at 1x
@@ -81,6 +82,9 @@ WEAPON_NAMES = {
     "Rogue":   ["Dagger", "Stiletto", "Short Bow", "Poisoned Fang", "Shadow Shiv", "Nightwhisper Blade"],
     "Cleric":  ["Mace", "War Maul", "Blessed Flail", "Sunforged Mace", "Dawnbringer"],
     "Wizard":  ["Oak Staff", "Apprentice Wand", "Runed Staff", "Stormcaller Rod", "Archmage Staff"],
+    "Ranger":  ["Hunting Bow", "Longbow", "Yew Bow", "Thornbow", "Wyrmslayer Bow"],
+    "Paladin": ["Oath Sword", "Warhammer", "Silvered Blade", "Dawnblade", "Justicar"],
+    "Barbarian": ["Greataxe", "Maul", "Bone Cleaver", "Frostbrand Axe", "Worldsplitter"],
 }
 ARMOR_NAMES = ["Cloth Rags", "Leather Jerkin", "Chain Shirt", "Scale Mail", "Plate Cuirass",
                "Mithral Mail", "Dragonscale Armor"]
@@ -394,9 +398,45 @@ CLASSES: dict[str, dict] = {
         "grow": {"max_hp": 13, "max_mp": 10, "atk": 4.2, "df": 1.1, "spd": 0.7},
         "skills": [
             Skill("zap", "Staff Jab", "\U0001fa84", "A reluctant bonk.", 0, 0, 1, "basic", 1.0),
-            Skill("fire", "Fireball", "\U0001f525", "1.9x fire. The classic.", 16, 3, 1, "nuke", 1.9),
+            Skill("fire", "Fireball", "\U0001f525", "2.0x fire. The classic.", 16, 3, 1, "nuke", 2.0),
             Skill("frost", "Frost Nova", "\u2744\ufe0f", "1.3x + slow foe (-4 SPD 3t).", 18, 5, 3, "slow", 1.3),
             Skill("surge", "Arcane Surge", "\U0001f320", "3.0x cataclysm.", 34, 7, 5, "nuke", 3.0),
+        ],
+    },
+    "Ranger": {
+        "icon": "\U0001f3f9", "color": "#2dd4bf",
+        "flavor": "Eyes of the wild. Fast, precise, never without an arrow.",
+        "base": {"max_hp": 98, "max_mp": 40, "atk": 14, "df": 7, "spd": 12, "crit": 20, "dodge": 10},
+        "grow": {"max_hp": 16, "max_mp": 5, "atk": 3.4, "df": 1.6, "spd": 0.9},
+        "skills": [
+            Skill("shot", "Longshot", "\U0001f3f9", "A single true arrow.", 0, 0, 1, "basic", 1.0),
+            Skill("volley", "Volley", "\U0001f4a8", "1.8x sky-darkening hail.", 14, 4, 1, "nuke", 1.8),
+            Skill("serp", "Serpent Arrow", "\U0001f40d", "1.1x + venom burn (3t).", 12, 5, 3, "dot", 1.1),
+            Skill("snare", "Entangling Shot", "\U0001f578", "1.3x + root foe (-4 SPD 3t).", 16, 5, 5, "slow", 1.3),
+        ],
+    },
+    "Paladin": {
+        "icon": "\U0001f6e1\ufe0f", "color": "#e5e7eb",
+        "flavor": "Oathbound bulwark. Holds the line; the Light holds them.",
+        "base": {"max_hp": 112, "max_mp": 40, "atk": 13, "df": 9, "spd": 7, "crit": 10, "dodge": 6},
+        "grow": {"max_hp": 20, "max_mp": 5, "atk": 3.0, "df": 2.0, "spd": 0.5},
+        "skills": [
+            Skill("oathblade", "Oathblade", "\U0001f528", "A vow given edge.", 0, 0, 1, "basic", 1.0),
+            Skill("judge", "Judgment", "\u2696\ufe0f", "2.0x weighed and found wanting.", 16, 4, 1, "nuke", 2.0),
+            Skill("lay", "Lay on Hands", "\U0001f49b", "Restore 32% HP.", 20, 5, 3, "heal", 0.0, 0.32),
+            Skill("iron", "Oath of Iron", "\U0001f6e1\ufe0f", "+6 DEF for 3 turns. Unbroken.", 12, 5, 5, "buff", 0.0),
+        ],
+    },
+    "Barbarian": {
+        "icon": "\U0001fa93", "color": "#fb923c",
+        "flavor": "Rage given legs. Enormous HP, thin patience, thinner mana.",
+        "base": {"max_hp": 114, "max_mp": 20, "atk": 16, "df": 7, "spd": 8, "crit": 15, "dodge": 4},
+        "grow": {"max_hp": 24, "max_mp": 2, "atk": 3.8, "df": 1.6, "spd": 0.6},
+        "skills": [
+            Skill("swing", "Greataxe Swing", "\U0001fa93", "Subtlety is for the dead.", 0, 0, 1, "basic", 1.0),
+            Skill("cleave", "Reckless Cleave", "\U0001f4a5", "2.0x everything in front.", 18, 5, 1, "nuke", 2.0),
+            Skill("rend", "Rend", "\U0001fa78", "1.2x + bleeding wounds (3t).", 12, 5, 3, "dot", 1.2),
+            Skill("wind", "Second Wind", "\U0001f343", "Restore 22% HP. Still standing.", 18, 6, 5, "heal", 0.0, 0.22),
         ],
     },
 }
@@ -436,6 +476,7 @@ class Fighter:
     crit: int = 10       # percent
     dodge: int = 5       # percent
     ctype: str = ""      # creature type: Beast, Dragon, Undead... (mobs/bosses only)
+    elite: bool = False  # champion mob: tougher, richer
     cds: dict = field(default_factory=dict)  # boss art cooldowns: art -> ticks left
     buffs: dict = field(default_factory=dict)   # stat -> [amount, turns]
     dots: list = field(default_factory=list)    # [dmg, turns, label]
@@ -468,13 +509,13 @@ def xp_needed(level: int) -> int:
     return int(70 + level * 55 + (level ** 1.55) * 18)
 
 
-def roll_loot(depth: int, boss: bool, hero_cls: str) -> Item | None:
+def roll_loot(depth: int, boss: bool, hero_cls: str, bonus_drop: float = 0.0) -> Item | None:
     r = random.random()
     if boss:
         roll = random.random()
         rarity = "Legendary" if roll < 0.12 else "Epic" if roll < 0.40 else "Rare"
     else:
-        if r > 0.20:
+        if r > 0.20 + bonus_drop:
             return None
         roll = random.random()
         if roll < 0.50:
@@ -587,6 +628,56 @@ def scores_table(scores: list, highlight: int = -1, limit: int = 10) -> Table:
     return t
 
 
+def boss_roster() -> list[tuple[str, str]]:
+    """(full name, first name) of the 40 fixed bosses, depth order."""
+    out = [(f"{a} {b}", a) for d in DUNGEONS for a, b in [d["boss"]]]
+    out += [(f"{first} {title}", first) for _, first, title in DEEP_BOSSES]
+    return out
+
+
+ROSTER_40 = boss_roster()
+
+
+def load_codex() -> list:
+    try:
+        with open(CODEX_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            slain = data.get("slain", []) if isinstance(data, dict) else []
+            return [s for s in slain if isinstance(s, str)]
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def record_boss(full_name: str) -> tuple[bool, int]:
+    """Record a boss kill. Returns (is_new, total slain). Roster only."""
+    roster_fulls = {full for full, _ in ROSTER_40}
+    if full_name not in roster_fulls:
+        return False, len(load_codex())
+    slain = load_codex()
+    if full_name in slain:
+        return False, len(slain)
+    slain.append(full_name)
+    with open(CODEX_FILE, "w", encoding="utf-8") as f:
+        json.dump({"slain": slain}, f, indent=2)
+    return True, len(slain)
+
+
+def codex_table(slain: list) -> Table:
+    have = set(slain)
+    t = Table(box=box.ROUNDED, show_header=False, padding=(0, 2))
+    for _ in range(5):
+        t.add_column()
+    row: list[str] = []
+    for i, (full, first) in enumerate(ROSTER_40, 1):
+        row.append(f"[gold1]{first}[/]" if full in have else f"[dim]{i} · ???[/]")
+        if len(row) == 5:
+            t.add_row(*row)
+            row = []
+    if row:
+        t.add_row(*row)
+    return t
+
+
 # --------------------------------------------------------------------------- #
 # Hero + monster factories
 # --------------------------------------------------------------------------- #
@@ -606,6 +697,15 @@ STARTER_GEAR: dict[str, list[tuple[str, str, dict]]] = {
     "Wizard":  [("Weapon", "Cracked Oak Staff", {"ATK": 2}),
                 ("Armor", "Frayed Apprentice Robes", {"DEF": 1}),
                 ("Trinket", "Faded Cantrip Scroll", {"MP": 8})],
+    "Ranger":  [("Weapon", "Hunting Bow", {"ATK": 2}),
+                ("Armor", "Worn Leathers", {"DEF": 1}),
+                ("Trinket", "Feather Charm", {"SPD": 1})],
+    "Paladin": [("Weapon", "Oath Sword", {"ATK": 2}),
+                ("Armor", "Dented Pauldrons", {"DEF": 2}),
+                ("Trinket", "Iron Prayer Beads", {"HP": 6})],
+    "Barbarian": [("Weapon", "Notched Greataxe", {"ATK": 3}),
+                ("Armor", "Rawhide Wraps", {"DEF": 1}),
+                ("Trinket", "Bear Tooth", {"HP": 6})],
 }
 
 
@@ -684,6 +784,7 @@ def make_monster(depth: int, hero_level: int, boss: bool = False) -> Fighter:
     # attrition, not one-shots, should end runs. Depth 20 = a good run.
     power = 1.02 ** max(0, depth - 2)
     tank = power ** 0.5
+    elite = False
     if boss:
         first, title = d["boss"]
         name = f"{first} {title}"
@@ -703,8 +804,11 @@ def make_monster(depth: int, hero_level: int, boss: bool = False) -> Fighter:
         name = random.choice(d["mobs"])
         ctype = MOB_TYPES.get(name, "Monstrosity")
         lvl = max(1, hero_level + random.randint(-1, 1))
-        hp = int((30 + depth * 20 + lvl * 11 + random.randint(0, 12)) * power)
-        atk = int((5 + depth * 1.9 + lvl * 1.2 + random.randint(0, 3)) * power)
+        elite = random.random() < 0.06
+        if elite:
+            name = f"{random.choice(['Elder ', 'Alpha ', 'Dire '])}{name}"
+        hp = int((30 + depth * 20 + lvl * 11 + random.randint(0, 12)) * power * (1.6 if elite else 1.0))
+        atk = int((5 + depth * 1.9 + lvl * 1.2 + random.randint(0, 3)) * power * (1.25 if elite else 1.0))
         df_ = int((2 + depth * 1.2 + lvl * 0.7) * tank)
         spd = int(5 + depth * 0.5 + lvl * 0.35 + random.randint(-1, 2))
         kind = "mob"
@@ -713,6 +817,7 @@ def make_monster(depth: int, hero_level: int, boss: bool = False) -> Fighter:
     base_dodge = 5 if not boss else 8
     return Fighter(name=name, kind=kind, level=lvl, max_hp=hp, hp=hp,
                    atk=atk, df=df_, spd=spd, ctype=ctype,
+                   elite=elite,
                    crit=base_crit + (5 if ctype == "Monstrosity" else 0),
                    dodge=base_dodge + (4 if ctype == "Beast" else 0))
 
@@ -751,13 +856,17 @@ def hero_strike(hero: dict, foe: Fighter, skill: Skill) -> list[str]:
         msgs(f"[{cname}]\u2728 {skill.name}[/] — restored [green]{amt} HP[/].")
         return out
     if skill.kind == "buff":
-        if hero["cls"] == "Warrior":
-            hero["buffs"]["df"] = [6, 3, "Shield Wall"]
-            hero["hp"] = min(hero_max_hp(hero), hero["hp"] + 8 + hero["level"] * 2)
-            msgs(f"[{cname}]\U0001f6e1\ufe0f {skill.name}[/] — [cyan]+6 DEF[/] for 3 turns, braced!")
+        if hero["cls"] in ("Warrior", "Paladin"):
+            hero["buffs"]["df"] = [6, 3, skill.name]
+            extra = ""
+            if hero["cls"] == "Warrior":
+                mend = 8 + hero["level"] * 2
+                hero["hp"] = min(hero_max_hp(hero), hero["hp"] + mend)
+                extra = f", mending {mend} HP"
+            msgs(f"[{cname}]{skill.icon} {skill.name}[/] — [cyan]+6 DEF[/] for 3 turns{extra}!")
         else:
-            hero["buffs"]["dodge"] = [18, 3, "Evasive Dance"]
-            msgs(f"[{cname}]\U0001f4a8 {skill.name}[/] — [cyan]+18% dodge[/] for 3 turns!")
+            hero["buffs"]["dodge"] = [18, 3, skill.name]
+            msgs(f"[{cname}]{skill.icon} {skill.name}[/] — [cyan]+18% dodge[/] for 3 turns!")
         return out
     if skill.kind == "shield":
         hero["buffs"]["ward"] = [40, 3, "Sanctuary"]
@@ -1055,7 +1164,11 @@ def grant_rewards(hero: dict, foe: Fighter) -> list[str]:
     xp = int((18 + foe.level * 14 + (8 if boss else 0)) * (1 + foe.level * 0.02))
     if boss:
         xp = int(xp * 2.2)
+    if foe.elite:
+        xp = int(xp * 1.5)
     gold = int(random.randint(8, 20) + foe.level * 6 + (60 if boss else 0))
+    if foe.elite:
+        gold = int(gold * 1.5)
     if foe.ctype == "Humanoid":
         gold = int(gold * 1.25)  # they carry purses
     hero["xp"] += xp
@@ -1073,7 +1186,8 @@ def grant_rewards(hero: dict, foe: Fighter) -> list[str]:
             hero["mp_pots"] += 1
             out.append("[blue]\U0001f9ea Found a mana potion![/]")
     # loot
-    item = roll_loot(max(1, hero.get("depth", 1)), boss, hero["cls"])
+    item = roll_loot(max(1, hero.get("depth", 1)), boss, hero["cls"],
+                     bonus_drop=0.25 if foe.elite else 0.0)
     if item:
         cur = hero["gear"][item.slot]
 
@@ -1203,7 +1317,8 @@ def foe_panel(foe: Fighter | None, depth: int, room: int, boss_room: bool) -> Pa
     room_txt = "BOSS" if boss_room else f"{room}/{ROOMS_PER_LEVEL}"
     tcolor = CREATURE_TYPES.get(foe.ctype, "white")
     tlabel = f"[{tcolor}]{foe.ctype}[/]" if foe.ctype else ""
-    return Panel(body, title=f"[{style}]\U0001f479 {foe.name}[/] [dim]· Lv{foe.level} · {room_txt}[/] {tlabel}",
+    etag = " [bold magenta]\u2b50ELITE[/]" if foe.elite else ""
+    return Panel(body, title=f"[{style}]\U0001f479 {foe.name}[/] [dim]· Lv{foe.level} · {room_txt}[/] {tlabel}{etag}",
                  border_style="red" if foe.kind == "boss" else "#8a7a6a", box=box.ROUNDED)
 
 
@@ -1444,6 +1559,9 @@ def death_screen(c: Console, hero: dict, foe_name: str, scores: list, rank: int)
     c.print(Align.center(Text(f"— Rank #{rank + 1} in the Hall of Fallen Heroes —", style="bold gold1")))
     c.print(scores_table(scores, highlight=rank))
     c.print()
+    slain = load_codex()
+    c.print(Align.center(Text(f"\U0001f4d6 Boss Codex: {len(slain)}/40", style="bold gold1")))
+    c.print()
     c.print(Align.center(Text("Press Enter to return to the tavern…", style="dim")))
     try:
         input()
@@ -1487,7 +1605,10 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
             log.append(f"[bold red]\U0001f480 A NAMED FOE bars the stair: {m.name}![/] [dim](Lv{m.level})[/]")
             log.append(f"[dim italic]\"{random.choice(['Your bones will pave my hall.','Another candle gutters out.','The dark keeps what it catches.', 'Kneel, little spark.'])}\"[/]")
         else:
-            log.append(f"[{dungeon_for_depth(depth)['color']}]— Room {room}: {m.name}[/] [dim](Lv{m.level}) stalks forth…[/]")
+            if m.elite:
+                log.append(f"[bold magenta]\u2b50 CHAMPION: {m.name}[/] [dim](Lv{m.level}, {m.ctype}) blocks the way![/]")
+            else:
+                log.append(f"[{dungeon_for_depth(depth)['color']}]— Room {room}: {m.name}[/] [dim](Lv{m.level}) stalks forth…[/]")
         return m
 
     foe = new_foe()
@@ -1665,6 +1786,9 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                 if was_boss:
                     d = dungeon_for_depth(depth)
                     log.append(f"[bold gold1]\U0001f3c6 {d['name']} cleansed! The stair yawns deeper…[/]")
+                    is_new, n = record_boss(foe.name)
+                    if is_new:
+                        log.append(f"[bold gold1]\U0001f4d6 Codex: {foe.name} recorded! ({n}/40)[/]")
                     state = "rest"
                     rest_left = 4
                     foe = None
@@ -1700,6 +1824,10 @@ def main() -> None:
         scores = load_scores()
         console.print(Align.center(Text("— HALL OF FALLEN HEROES —", style="bold gold1")))
         console.print(scores_table(scores, limit=10))
+        console.print()
+        slain = load_codex()
+        console.print(Align.center(Text(f"— \U0001f4d6 BOSS CODEX {len(slain)}/40 —", style="bold gold1")))
+        console.print(Align.center(codex_table(slain)))
         return
 
     if args.demo:

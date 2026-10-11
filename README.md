@@ -30,8 +30,10 @@ Your only keys are `Space` (pause), `+`/`-` (speed, 0.5x–8x), `A`
 
 ## The game
 
-- **4 classes** with distinct kits: Warrior (tanky), Rogue (crits, venom,
-  evasion, Ambush opener), Cleric (smites, heals, wards), Wizard (glass cannon). Skills unlock
+- **7 classes** with distinct kits: Warrior (tanky), Rogue (crits, venom,
+  evasion, Ambush opener), Cleric (smites, heals, wards), Wizard (glass cannon),
+  Ranger (fast archer, arrows for everything), Paladin (oathbound bulwark),
+  Barbarian (enormous HP, reckless cleaves, tiny mana pool). Skills unlock
   at levels 1/3/5; everyone starts with class-flavored Common starter gear.
 - **10 creature types** — Beast, Dragon, Undead, Plant, Elemental, Fiend,
   Giant, Humanoid, Monstrosity, Aberration — each with a combat trait. The dead
@@ -42,6 +44,9 @@ Your only keys are `Space` (pause), `+`/`-` (speed, 0.5x–8x), `A`
   Vermithrax's Hoardfire… Boss level comes from the dungeon, so every hero
   faces the same wall. Past 40, the Deep Dark names its own (deterministically —
   same depth, same horror, every run).
+- **Champion mobs** (⭐Elder/Alpha/Dire): tougher, richer, better-dropped.
+- **Boss Codex**: every roster boss you kill is recorded persistently and shown
+  on the `--highscores` screen. Gotta slay 'em all.
 - **Loot**: 5 slots (Weapon/Armor/Trinket/Ring/Boots) in 5 rarities, gear sets
   (2+ matching pieces = bonus), and tempting **cursed** pieces with downsides.
 - **Highscores** in `highscores.json`: depth, level, and what killed you.

@@ -254,4 +254,23 @@ for _ in range(100):
 check("hex art fires", bool(got), str(got[:1]))
 check("hex labels its debuff", h2["buffs"].get("spd", [0, 0, "?"])[2] == "Spore Cloud", str(h2["buffs"]))
 print("BUFF TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
+
+# --- every class: starter kit complete, every skill fires, panel renders ---
+print("--- classes ---")
+import random as _r
+_r.seed(0)
+for _cls in g.CLASS_LIST:
+    _h = g.make_hero("T", _cls)
+    _ok = all(_h["gear"][s] is not None for s in ("Weapon", "Armor", "Trinket"))
+    check(f"{_cls}: starter kit", _ok)
+    _h["level"] = 6
+    _h["hp"] = g.hero_max_hp(_h); _h["mp"] = g.hero_max_mp(_h)
+    try:
+        for _s in g.CLASSES[_cls]["skills"]:
+            g.hero_strike(dict(_h), g.make_monster(3, 6), _s)
+        g.skills_panel(_h, False, 1.0, 1.0, True)
+        check(f"{_cls}: kit fires", True)
+    except Exception as e:  # noqa: BLE001
+        check(f"{_cls}: kit fires", False, repr(e))
+print("CLASS TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
 sys.exit(1 if fails else 0)
