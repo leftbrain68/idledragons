@@ -730,6 +730,80 @@ def legends_table(legends: list, limit: int = 10) -> Table:
     return t
 
 
+SAVE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "save.json")
+
+
+def _item_to_json(it: Item | None) -> dict | None:
+    if it is None:
+        return None
+    return {"slot": it.slot, "name": it.name, "rarity": it.rarity,
+            "color": it.color, "bonus": it.bonus, "set_name": it.set_name}
+
+
+def _item_from_json(d: dict | None) -> Item | None:
+    if d is None:
+        return None
+    return Item(slot=d.get("slot", "?"), name=d.get("name", "?"),
+                rarity=d.get("rarity", "Common"), color=d.get("color", "white"),
+                bonus=d.get("bonus", {}), set_name=d.get("set_name", ""))
+
+
+def serialize_run(base_tick, speed_idx, hero, depth, room, boss_room, state,
+                  rest_left, turn, auto_pots, foe, log) -> dict:
+    h = dict(hero)
+    h["gear"] = {s: _item_to_json(it) for s, it in hero["gear"].items()}
+    f = None
+    if foe is not None:
+        f = {"name": foe.name, "kind": foe.kind, "level": foe.level,
+             "max_hp": foe.max_hp, "hp": foe.hp, "max_mp": foe.max_mp, "mp": foe.mp,
+             "atk": foe.atk, "df": foe.df, "spd": foe.spd, "crit": foe.crit,
+             "dodge": foe.dodge, "ctype": foe.ctype, "elite": foe.elite,
+             "cds": foe.cds, "buffs": foe.buffs, "dots": foe.dots}
+    return {"version": 1, "tick": base_tick, "speed_idx": speed_idx,
+            "hero": h, "depth": depth, "room": room, "boss_room": boss_room,
+            "state": state, "rest_left": rest_left, "turn": turn,
+            "auto_pots": auto_pots, "foe": f, "log": list(log)}
+
+
+def deserialize_hero(d: dict) -> dict:
+    h = dict(d)
+    h["gear"] = {s: _item_from_json(it) for s, it in d.get("gear", {}).items()}
+    for s in ("Weapon", "Armor", "Trinket", "Ring", "Boots"):
+        h["gear"].setdefault(s, None)
+    h.setdefault("ambush", False)
+    return h
+
+
+def deserialize_foe(d: dict | None) -> Fighter | None:
+    if d is None:
+        return None
+    d = dict(d)
+    d.setdefault("ctype", "")
+    d.setdefault("elite", False)
+    d.setdefault("cds", {})
+    return Fighter(**d)
+
+
+def load_saved_run() -> dict | None:
+    try:
+        with open(SAVE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(data, dict) or data.get("version") != 1:
+        return None
+    if not isinstance(data.get("hero"), dict):
+        return None
+    return data
+
+
+def clear_saved_run() -> None:
+    try:
+        os.remove(SAVE_FILE)
+    except OSError:
+        pass
+
+
 def _median(xs: list):
     if not xs:
         return None
@@ -881,11 +955,13 @@ def hero_max_mp(hero: dict) -> int:
 def make_monster(depth: int, hero_level: int, boss: bool = False) -> Fighter:
     d = dungeon_for_depth(depth)
     # The Deep gets meaner faster than heroes grow: flat for depths 1-2,
-    # then ~2.7%/level compounded. x1.0 @2, x1.24 @10, x1.61 @20, x1.85 @30.
+    # then ~2.7%/level compounded to 25 (x1.17 @10, x1.61 @20), then nearly
+    # flat (+0.5%/level) so legendary runs can reach Ereboss; the endless
+    # dark beyond still grows forever. Boss ramp mults cap at 25 likewise.
     # (Retuned after armor DEF started working: heroes are sturdier now.)
     # Boss fights stay short (lean HP) but hit harder with depth;
     # attrition, not one-shots, should end runs. Depth 20 = a good run.
-    power = 1.027 ** max(0, depth - 2)
+    power = 1.027 ** min(max(0, depth - 2), 23) * 1.005 ** max(0, depth - 25)
     tank = power ** 0.5
     elite = False
     if boss:
@@ -898,8 +974,8 @@ def make_monster(depth: int, hero_level: int, boss: bool = False) -> Fighter:
         lvl = depth + 2
         # Bosses ramp with depth instead of spiking early (Griznak mercy rule).
         # Lean HP (short, violent fights) + attack that grows with depth.
-        hp = int((55 + depth * 34 + lvl * 14) * (1.5 + depth * 0.03) * power)
-        atk = int((7 + depth * 2.6 + lvl * 1.5) * (1.05 + depth * 0.012) * power)
+        hp = int((55 + depth * 34 + lvl * 14) * (1.5 + min(depth, 25) * 0.03) * power)
+        atk = int((7 + depth * 2.6 + lvl * 1.5) * (1.05 + min(depth, 25) * 0.012) * power)
         df_ = int((4 + depth * 1.8 + lvl * 0.9) * tank)
         spd = int(6 + depth * 0.7 + lvl * 0.3)
         if depth == 40:
@@ -1493,8 +1569,10 @@ def skills_panel(hero: dict, paused: bool, speed: float, base_tick: float, auto_
         else:
             t.add_row(f"[white]{s.icon} {s.name}[/]", f"[dim]{s.mp}MP[/]" if s.mp else "[green]ready[/]")
     t.add_row("", "")
-    t.add_row("[dim]\U0001f9ea potions quaff themselves[/]", "[dim][Space]pause  [Q]quit[/]")
-    t.add_row(f"[dim]speed {speed:g}x ({base_tick / speed:.2f}s) [+/-][/]", "[green]AUTO-POTS ON[/]" if auto_pots else "[red]AUTO-POTS OFF [A][/]")
+    t.add_row("[white]\U0001f9ea potions quaff themselves[/]",
+              "[bold yellow][Space][/] pause  [bold yellow][Q][/] quit")
+    t.add_row(f"[dim]speed[/] [bold cyan]{speed:g}x ({base_tick / speed:.2f}s)[/] [bold yellow][+][/][dim]/[/][bold yellow][-][/]",
+              "[green]AUTO-POTS ON[/] [bold yellow][A][/]" if auto_pots else "[red]AUTO-POTS OFF[/] [bold yellow][A][/]")
     if paused:
         t.add_row("[bold yellow]\u23f8\ufe0f PAUSED[/]", "")
     return Panel(t, title="\u2728 Skills & Keys", border_style="cyan", box=box.ROUNDED)
@@ -1703,28 +1781,48 @@ def victory_screen(c: Console, hero: dict, legends: list) -> str:
 # Game loop
 # --------------------------------------------------------------------------- #
 
-def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
-    hero = make_hero(name, cls)
-    hero["depth"] = 1
-    log: deque = deque(maxlen=MAX_LOG)
-    c = CLASSES[cls]
-    log.append(f"[bold {c['color']}]\U0001f388 {name}, {cls} of the {random.choice(['Silver Marches','Dalelands','Sword Coast','Underdark Exiles'])}[/], enters the dark.")
-    log.append(f"[dim]{D20} The innkeep wishes thee luck. Potions stocked: {hero['hp_pots']}HP/{hero['mp_pots']}MP.[/]")
-    kit = ", ".join(hero["gear"][s].name for s in ("Weapon", "Armor", "Trinket"))
-    log.append(f"[dim]\U0001f455 Starter kit issued: {kit}. Try not to bleed on it.[/]")
+def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0,
+             persist: bool = True, resume: dict | None = None) -> None:
+    if resume:
+        hero = deserialize_hero(resume["hero"])
+        depth = resume.get("depth", 1)
+        room = resume.get("room", 1)
+        boss_room = resume.get("boss_room", False)
+        foe = deserialize_foe(resume.get("foe"))
+        state = resume.get("state", "combat")
+        rest_left = resume.get("rest_left", 0)
+        turn = resume.get("turn", 0)
+        auto_pots = resume.get("auto_pots", True)
+        base_tick = resume.get("tick", tick)
+        speed_idx = resume.get("speed_idx", DEFAULT_SPEED_IDX)
+        log: deque = deque(resume.get("log", []), maxlen=MAX_LOG)
+        log.append("[dim]\U0001f4be Run resumed. The dark kept your seat warm.[/]")
+        hero["hp"] = max(0, min(hero["hp"], hero_max_hp(hero)))
+        hero["mp"] = max(0, min(hero["mp"], hero_max_mp(hero)))
+        paused = False
+        demo_left = demo_ticks
+    else:
+        hero = make_hero(name, cls)
+        hero["depth"] = 1
+        log = deque(maxlen=MAX_LOG)
+        c = CLASSES[cls]
+        log.append(f"[bold {c['color']}]\U0001f388 {name}, {cls} of the {random.choice(['Silver Marches','Dalelands','Sword Coast','Underdark Exiles'])}[/], enters the dark.")
+        log.append(f"[dim]{D20} The innkeep wishes thee luck. Potions stocked: {hero['hp_pots']}HP/{hero['mp_pots']}MP.[/]")
+        kit = ", ".join(hero["gear"][s].name for s in ("Weapon", "Armor", "Trinket"))
+        log.append(f"[dim]\U0001f455 Starter kit issued: {kit}. Try not to bleed on it.[/]")
 
-    depth = 1
-    room = 1
-    boss_room = False
-    foe: Fighter | None = None
-    state = "combat"      # combat | rest (breather on the landing)
-    rest_left = 0
-    turn = 0
-    paused = False
-    auto_pots = True
-    base_tick = tick
-    speed_idx = DEFAULT_SPEED_IDX
-    demo_left = demo_ticks
+        depth = 1
+        room = 1
+        boss_room = False
+        foe: Fighter | None = None
+        state = "combat"      # combat | rest (breather on the landing)
+        rest_left = 0
+        turn = 0
+        paused = False
+        auto_pots = True
+        base_tick = tick
+        speed_idx = DEFAULT_SPEED_IDX
+        demo_left = demo_ticks
 
     def new_foe() -> Fighter:
         nonlocal boss_room
@@ -1741,7 +1839,22 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                 log.append(f"[{dungeon_for_depth(depth)['color']}]— Room {room}: {m.name}[/] [dim](Lv{m.level}) stalks forth…[/]")
         return m
 
-    foe = new_foe()
+    foe = new_foe() if resume is None else foe
+
+    def save_game(silent: bool = False) -> None:
+        if not persist or demo_ticks:
+            return
+        try:
+            with open(SAVE_FILE, "w", encoding="utf-8") as f:
+                json.dump(serialize_run(base_tick, speed_idx, hero, depth, room,
+                                        boss_room, state, rest_left, turn,
+                                        auto_pots, foe, log), f)
+        except OSError:
+            return
+        if not silent:
+            log.append("[dim]\U0001f4be progress saved.[/]")
+
+    save_game(silent=True)
 
     with Keyboard() as kb, Live(build_layout(hero, foe, log, depth, room, boss_room, turn,
                                              SPEEDS[speed_idx], base_tick, paused, auto_pots, state),
@@ -1753,9 +1866,10 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                 return False
             if key in ("q", "\x03"):
                 live.stop()
+                save_game(silent=True)
                 console.clear()
                 console.print("[dim]You slip back to the tavern. The dungeon waits…[/]")
-                console.print(f"[dim]{hero['name']} · Lv{hero['level']} · Depth {depth} (abandoned, not scored)[/]")
+                console.print(f"[dim]{hero['name']} · Lv{hero['level']} · Depth {depth} (saved — --resume to continue · not scored)[/]")
                 if hero.get("crowned"):
                     console.print("[gold1]\U0001f451 You leave crowned — the Hall of Legends remembers.[/]")
                 return True
@@ -1812,6 +1926,8 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
             turn += 1
             hero["turns"] += 1
             elapsed_note = time.time() - t0
+            if turn % 50 == 0:
+                save_game()
 
             # ---------------- landing breather between levels ----------------
             if state == "rest":
@@ -1901,11 +2017,16 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                          "boss_kills": hero["boss_kills"], "gold": hero["gold"],
                          "died_to": killer, "turns": hero["turns"],
                          "date": datetime.date.today().isoformat()}
-                scores = save_score(entry)
-                rank = next((i for i, s in enumerate(scores)
-                             if s["name"] == entry["name"] and s["date"] == entry["date"]
-                             and s["died_to"] == killer and s["depth"] == depth
-                             and s["level"] == hero["level"]), 0)
+                if persist:
+                    scores = save_score(entry)
+                    rank = next((i for i, s in enumerate(scores)
+                                 if s["name"] == entry["name"] and s["date"] == entry["date"]
+                                 and s["died_to"] == killer and s["depth"] == depth
+                                 and s["level"] == hero["level"]), 0)
+                    clear_saved_run()
+                else:
+                    scores = load_scores()  # demos watch but never enter the hall
+                    rank = len(scores)
                 death_screen(console, hero, killer, scores, rank)
                 return
 
@@ -1918,7 +2039,7 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                 if was_boss:
                     d = dungeon_for_depth(depth)
                     log.append(f"[bold gold1]\U0001f3c6 {d['name']} cleansed! The stair yawns deeper…[/]")
-                    is_new, n = record_boss(foe.name)
+                    is_new, n = (record_boss(foe.name) if persist else (False, 0))
                     if is_new:
                         log.append(f"[bold gold1]\U0001f4d6 Codex: {foe.name} recorded! ({n}/40)[/]")
                     if depth == 40:
@@ -1926,14 +2047,16 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                         hero["crowned"] = True
                         legends = record_legend({"name": hero["name"], "cls": hero["cls"],
                                                  "level": hero["level"], "turns": hero["turns"],
-                                                 "date": datetime.date.today().isoformat()})
+                                                 "date": datetime.date.today().isoformat()}) if persist else load_legends()
                         live.stop()
                         if victory_screen(console, hero, legends) == "retire":
-                            save_score({"name": hero["name"], "cls": hero["cls"], "depth": depth,
-                                        "level": hero["level"], "kills": hero["kills"],
-                                        "boss_kills": hero["boss_kills"], "gold": hero["gold"],
-                                        "died_to": "\U0001f451 Crowned, retired", "turns": hero["turns"],
-                                        "date": datetime.date.today().isoformat()})
+                            if persist:
+                                save_score({"name": hero["name"], "cls": hero["cls"], "depth": depth,
+                                            "level": hero["level"], "kills": hero["kills"],
+                                            "boss_kills": hero["boss_kills"], "gold": hero["gold"],
+                                            "died_to": "\U0001f451 Crowned, retired", "turns": hero["turns"],
+                                            "date": datetime.date.today().isoformat()})
+                                clear_saved_run()
                             console.print("[dim]You hang up your sword. The songs will do the rest.[/]")
                             return
                         live.start()
@@ -1960,6 +2083,7 @@ def main() -> None:
     ap.add_argument("--tick", type=float, default=TICK_DEFAULT, help="seconds per tick (default 1.0)")
     ap.add_argument("--highscores", action="store_true", help="show hall of fallen heroes and exit")
     ap.add_argument("--stats", action="store_true", help="show run statistics and exit")
+    ap.add_argument("--resume", action="store_true", help="resume the saved run (Q saves; death/retire clears)")
     ap.add_argument("--reset-highscores", action="store_true", help="wipe highscores and exit")
     ap.add_argument("--demo", type=int, default=0, metavar="TICKS",
                     help="auto-run N ticks with a random hero (no input needed, for testing)")
@@ -1987,11 +2111,20 @@ def main() -> None:
     if args.stats:
         stats_screen(console)
         return
+    if args.resume:
+        data = load_saved_run()
+        if data is None:
+            print("No saved run found (save.json). Q saves; death and retire clear it.")
+            return
+        h = data["hero"]
+        console.print(f"[dim]\U0001f4be Resuming {h['name']} the {h['cls']} — depth {data.get('depth', 1)}, turn {data.get('turn', 0)}.[/]")
+        run_game(h["name"], h["cls"], tick=args.tick, resume=data)
+        return
 
     if args.demo:
         random.seed(7)
         run_game("Demo" + random.choice(["na", "ric"]), random.choice(CLASS_LIST),
-                 tick=0.01, demo_ticks=args.demo)
+                 tick=0.01, demo_ticks=args.demo, persist=False)
         print("demo OK")
         return
 

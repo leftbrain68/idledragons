@@ -385,4 +385,51 @@ try:
 except OSError:
     pass
 print("ASCENSION TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
+
+# --- suspend/resume: snapshot roundtrip + a resumed run executes ---
+print("--- suspend ---")
+import json as _json
+h = mkhero("Warrior")
+h["level"] = 5
+h["hp"] = g.hero_max_hp(h); h["mp"] = g.hero_max_mp(h)
+_foe = g.make_monster(3, 5)
+d = g.serialize_run(1.0, 1, h, 3, 2, False, "combat", 0, 100, True, _foe, ["a", "b"])
+h2 = g.deserialize_hero(d["hero"])
+f2 = g.deserialize_foe(d["foe"])
+check("hero roundtrip", (h2["name"], h2["level"], h2["hp"], h2["gear"]["Weapon"].name) ==
+      (h["name"], h["level"], h["hp"], h["gear"]["Weapon"].name))
+check("foe roundtrip", (f2.name, f2.hp, f2.ctype) == (_foe.name, _foe.hp, _foe.ctype))
+check("meta roundtrip", (d["depth"], d["room"], d["turn"], d["log"]) == (3, 2, 100, ["a", "b"]))
+check("rest-state foe None", g.deserialize_foe(None) is None)
+_old_save = g.SAVE_FILE
+g.SAVE_FILE = os.path.join(_tf.gettempdir(), "idledragons_test_save.json")
+try:
+    with open(g.SAVE_FILE, "w") as _f:
+        _json.dump(d, _f)
+    _loaded = g.load_saved_run()
+    check("save file roundtrip", _loaded["depth"] == 3 and _loaded["hero"]["name"] == h["name"])
+    g.clear_saved_run()
+    check("clear removes save", g.load_saved_run() is None)
+finally:
+    g.SAVE_FILE = _old_save
+
+
+class _DL:
+    def __init__(self, *a, **k): pass
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def stop(self): pass
+    def update(self, *a, **k): pass
+
+
+_old_live = g.Live
+g.Live = _DL
+try:
+    g.run_game(h2["name"], h2["cls"], tick=0, demo_ticks=30, persist=False, resume=d)
+    check("resumed run executes 30 ticks", True)
+except Exception as e:  # noqa: BLE001
+    check("resumed run executes 30 ticks", False, repr(e))
+finally:
+    g.Live = _old_live
+print("SUSPEND TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
 sys.exit(1 if fails else 0)

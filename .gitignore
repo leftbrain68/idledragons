@@ -5,3 +5,5 @@ __pycache__/
 highscores.json
 codex.json
 legends.json
+save.json
+handoff.md
