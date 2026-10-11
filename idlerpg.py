@@ -752,15 +752,15 @@ def hero_strike(hero: dict, foe: Fighter, skill: Skill) -> list[str]:
         return out
     if skill.kind == "buff":
         if hero["cls"] == "Warrior":
-            hero["buffs"]["df"] = [6, 3]
+            hero["buffs"]["df"] = [6, 3, "Shield Wall"]
             hero["hp"] = min(hero_max_hp(hero), hero["hp"] + 8 + hero["level"] * 2)
             msgs(f"[{cname}]\U0001f6e1\ufe0f {skill.name}[/] — [cyan]+6 DEF[/] for 3 turns, braced!")
         else:
-            hero["buffs"]["dodge"] = [18, 3]
+            hero["buffs"]["dodge"] = [18, 3, "Evasive Dance"]
             msgs(f"[{cname}]\U0001f4a8 {skill.name}[/] — [cyan]+18% dodge[/] for 3 turns!")
         return out
     if skill.kind == "shield":
-        hero["buffs"]["ward"] = [40, 3]
+        hero["buffs"]["ward"] = [40, 3, "Sanctuary"]
         msgs(f"[{cname}]\U0001f54c {skill.name}[/] — a dome of dawnlight ([cyan]-40% damage[/], 3t).")
         return out
 
@@ -940,7 +940,7 @@ def boss_ability(foe: Fighter, hero: dict) -> list[str]:
         out.append(f"[red]  \U0001fa78 Bloodied and beyond pain (+{art['amount']} ATK).[/]")
     elif kind in ("hex_spd", "hex_dodge", "hex_atk"):
         stat = {"hex_spd": "spd", "hex_dodge": "dodge", "hex_atk": "atk"}[kind]
-        hero["buffs"][stat] = [hero["buffs"].get(stat, [0, 0])[0] - art["amount"], art["dur"]]
+        hero["buffs"][stat] = [hero["buffs"].get(stat, [0, 0])[0] - art["amount"], art["dur"], art["art"]]
         out.append(tag)
         out.append(f"[red]  \U0001f577 You are diminished (-{art['amount']} {stat.upper()}, {art['dur']}t).[/]")
     return out
@@ -964,7 +964,8 @@ def tick_buffs(hero: dict, foe: Fighter) -> None:
     for obj in (hero, foe):
         buffs = obj["buffs"] if isinstance(obj, dict) else obj.buffs
         dead = []
-        for k, (amt, t) in buffs.items():
+        for k, v in buffs.items():
+            amt, t = v[0], v[1]  # entries may carry a [2] source label; ignore it here
             if t - 1 <= 0:
                 dead.append(k)
             else:
@@ -1144,7 +1145,11 @@ def hero_panel(hero: dict) -> Panel:
     php, pmp = hero["hp"] / max(1, mxhp), hero["mp"] / max(1, mxmp)
     need = xp_needed(hero["level"])
     pxp = hero["xp"] / max(1, need)
-    buff_txt = " ".join(f"[magenta]{k}{v[0]:+}({v[1]}t)[/]" for k, v in hero["buffs"].items()) or "[dim]—[/]"
+    parts = []
+    for k, v in hero["buffs"].items():
+        label = v[2] if len(v) > 2 else k
+        parts.append(f"[magenta]{label} ({v[0]:+} {k.upper()}) {v[1]}t[/]")
+    buff_txt = " ".join(parts) or "[dim]—[/]"
     g = hero["gear"]
     def gear_line(slot: str) -> str:
         it = g[slot]

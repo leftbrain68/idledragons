@@ -224,4 +224,34 @@ for s in g.CLASSES["Wizard"]["skills"]:
 h2["mp"] = -99
 check("choose_skill falls back to basic", g.choose_skill(h2).kind == "basic")
 print("HARDENING TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
+
+# --- buff source labels: shown by name, tick down, expire cleanly ---
+print("--- buffs ---")
+h = mkhero("Rogue")
+dance = next(s for s in g.CLASSES["Rogue"]["skills"] if s.kind == "buff")
+g.hero_strike(h, mkfoe("Beast", hp=10**9), dance)
+check("dance labels its buff", h["buffs"].get("dodge") == [18, 3, "Evasive Dance"], str(h["buffs"]))
+w = mkhero("Warrior")
+wall = next(s for s in g.CLASSES["Warrior"]["skills"] if s.key == "wall")
+g.hero_strike(w, mkfoe("Beast", hp=10**9), wall)
+check("wall labels its buff", w["buffs"].get("df") == [6, 3, "Shield Wall"], str(w["buffs"]))
+g.tick_buffs(h, mkfoe("Beast", hp=10**9))
+check("labeled buff ticks", h["buffs"]["dodge"][1] == 2, str(h["buffs"]))
+for _ in range(3):
+    g.tick_buffs(h, mkfoe("Beast", hp=10**9))
+check("labeled buff expires", "dodge" not in h["buffs"], str(h["buffs"]))
+# boss hex carries the art name
+h2 = mkhero("Warrior")
+from idlerpg import Fighter as _F
+hex_foe = _F(name="Mother Mycelia x", kind="boss", level=5, max_hp=500, hp=500,
+             atk=20, df=5, spd=5, crit=0, dodge=0, ctype="Plant")
+got = []
+for _ in range(100):
+    hex_foe.cds.pop("art", None)
+    got = g.boss_ability(hex_foe, h2)
+    if got:
+        break
+check("hex art fires", bool(got), str(got[:1]))
+check("hex labels its debuff", h2["buffs"].get("spd", [0, 0, "?"])[2] == "Spore Cloud", str(h2["buffs"]))
+print("BUFF TESTS DONE", "— FAILURES:" if fails else "— ALL PASS", fails)
 sys.exit(1 if fails else 0)
