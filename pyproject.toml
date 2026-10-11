@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "idledragons"
+version = "0.6.0"
+description = "A pretty DnD-themed terminal idleRPG"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["rich"]
+
+[project.scripts]
+idledragons = "idlerpg:main"
