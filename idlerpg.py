@@ -1594,11 +1594,11 @@ def hero_panel(hero: dict) -> Panel:
         for s, n in sets.items()) or "[dim]—[/]"
 
     body = Table(box=None, show_header=False, padding=(0, 1), expand=True)
-    body.add_column(style="dim", width=5)
-    body.add_column()
-    body.add_row("LV", f"[bold yellow]{hero['level']}[/]  [dim]{hero['xp']}/{need} XP[/] [cyan]{bar(hero['xp'], need, 12)}[/]")
-    body.add_row("HP", f"[{hp_color(php)}]{bar(hero['hp'], mxhp, 12)}[/] [bold]{hero['hp']}/{mxhp}[/]")
-    body.add_row("MP", f"[blue]{bar(hero['mp'], mxmp, 12)}[/] [bold]{hero['mp']}/{mxmp}[/]")
+    body.add_column(style="dim", width=5, justify="left")
+    body.add_column(justify="left")
+    body.add_row("LV", f"[bold yellow]{hero['level']}[/]  [dim]{hero['xp']:>{len(str(need))}}/{need} XP[/] [cyan]{bar(hero['xp'], need, 12)}[/]")
+    body.add_row("HP", f"[{hp_color(php)}]{bar(hero['hp'], mxhp, 12)}[/] [bold]{hero['hp']:>{len(str(mxhp))}}/{mxhp}[/]")
+    body.add_row("MP", f"[blue]{bar(hero['mp'], mxmp, 12)}[/] [bold]{hero['mp']:>{len(str(mxmp))}}/{mxmp}[/]")
     body.add_row("ATK", f"{eff_int(hero, 'atk')}   DEF {eff_int(hero, 'df')}   SPD {eff_int(hero, 'spd')}")
     body.add_row("CRT", f"{hero['crit']}%   DDG {hero['dodge'] + hero['buffs'].get('dodge', [0, 0])[0]}%")
     body.add_row("\U0001f4b0", f"[yellow]{hero['gold']}g[/]   \U0001f9ea [red]{hero['hp_pots']}[/]/[blue]{hero['mp_pots']}[/]")
@@ -1610,6 +1610,7 @@ def hero_panel(hero: dict) -> Panel:
     body.add_row("\u2728", buff_txt)
     body.add_row("[gold1]SET[/]", set_txt)
     return Panel(body, title=f"{c['icon']} [bold {c['color']}]{hero['name']}[/] · {hero['cls']}",
+                 title_align="left",
                  border_style=c["color"], box=box.ROUNDED)
 
 
@@ -1619,18 +1620,23 @@ def foe_panel(foe: Fighter | None, depth: int, room: int, boss_room: bool) -> Pa
                      border_style="dim", box=box.ROUNDED)
     p = foe.hp / max(1, foe.max_hp)
     tag = " [red]\U0001f480 BOSS[/]" if foe.kind == "boss" else ""
-    dots = (" " + " ".join(f"[green]{d[2]}({d[1]})[/]" for d in foe.dots)) if foe.dots else ""
-    debuff = ""
-    if "df" in foe.buffs and foe.buffs["df"][0] < 0:
-        debuff += f" [red]BRKN({foe.buffs['df'][1]})[/]"
-    if "spd" in foe.buffs and foe.buffs["spd"][0] < 0:
-        debuff += f" [cyan]SLOW({foe.buffs['spd'][1]})[/]"
     body = Table(box=None, show_header=False, padding=(0, 1), expand=True)
-    body.add_column(style="dim", width=5)
-    body.add_column()
-    body.add_row("LV", f"[bold]{foe.level}[/]{tag}{dots}{debuff}")
-    body.add_row("HP", f"[{hp_color(p)}]{bar(foe.hp, foe.max_hp, 14)}[/] [bold]{foe.hp}/{foe.max_hp}[/]")
-    body.add_row("DMG", f"[red]{int(foe.eff('atk'))}[/]   ARM {int(foe.eff('df'))}   SPD {int(foe.eff('spd'))}")
+    body.add_column(style="dim", width=5, justify="left")
+    body.add_column(justify="left")
+    body.add_row("LV", f"[bold]{foe.level}[/]{tag}")
+    w = len(str(foe.max_hp))
+    body.add_row("HP", f"[{hp_color(p)}]{bar(foe.hp, foe.max_hp, 14)}[/] [bold]{foe.hp:>{w}}/{foe.max_hp}[/]")
+    # compact + padded: constant width, so wrapping never flip-flops as
+    # buffs toggle values across digit counts (SPD 10 <-> 6 etc.)
+    body.add_row("DMG", f"[red]ATK{int(foe.eff('atk')):>3} DEF{int(foe.eff('df')):>3} SPD{int(foe.eff('spd')):>3}[/]")
+    fx = []
+    for _dmg, _turns, _label in foe.dots:
+        fx.append(f"[green]{_label}{_turns}[/]")
+    if "df" in foe.buffs and foe.buffs["df"][0] < 0:
+        fx.append(f"[red]BRKN{foe.buffs['df'][1]}[/]")
+    if "spd" in foe.buffs and foe.buffs["spd"][0] < 0:
+        fx.append(f"[cyan]SLOW{foe.buffs['spd'][1]}[/]")
+    body.add_row("FX", " ".join(fx) if fx else "[dim]—[/]")
     if foe.kind == "boss":
         art = boss_art_for(foe)
     else:
@@ -1649,13 +1655,14 @@ def foe_panel(foe: Fighter | None, depth: int, room: int, boss_room: bool) -> Pa
     if desc is None:
         desc = TYPE_BLURB.get(foe.ctype, "")
     if desc:
-        body.add_row("", f"[dim italic]{desc}[/]")
+        body.add_row("DESCR", f"[dim italic]{desc}[/]")
     style = "bold red" if foe.kind == "boss" else "red"
     room_txt = "BOSS" if boss_room else f"{room}/{ROOMS_PER_LEVEL}"
     tcolor = CREATURE_TYPES.get(foe.ctype, "white")
     tlabel = f"[{tcolor}]{foe.ctype}[/]" if foe.ctype else ""
     etag = " [bold magenta]\u2b50ELITE[/]" if foe.elite else ""
     return Panel(body, title=f"[{style}]{foe_icon(foe)} {foe.name}[/] [dim]· Lv{foe.level} · {room_txt}[/] {tlabel}{etag}",
+                 title_align="left",
                  border_style="red" if foe.kind == "boss" else "#8a7a6a", box=box.ROUNDED)
 
 
