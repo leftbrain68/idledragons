@@ -194,15 +194,15 @@ CLASSES: dict[str, dict] = {
         "grow": {"max_hp": 18, "max_mp": 8, "atk": 2.7, "df": 1.9, "spd": 0.6},
         "skills": [
             Skill("mace", "Sacred Mace", "\U0001f528", "Blessed bludgeon.", 0, 0, 1, "basic", 1.0),
-            Skill("smite", "Holy Smite", "\u2728", "1.5x radiant dmg + heal 12%.", 14, 3, 1, "drain", 1.5),
-            Skill("heal", "Greater Heal", "\U0001f49a", "Restore 38% HP.", 22, 5, 3, "heal", 0.0, 0.38),
-            Skill("sanc", "Sanctuary", "\U0001f54c", "Ward: -45% dmg taken, 3t.", 26, 7, 5, "shield", 0.0),
+            Skill("smite", "Holy Smite", "\u2728", "1.5x radiant dmg + heal 10%.", 14, 3, 1, "drain", 1.5),
+            Skill("heal", "Greater Heal", "\U0001f49a", "Restore 32% HP.", 22, 5, 3, "heal", 0.0, 0.32),
+            Skill("sanc", "Sanctuary", "\U0001f54c", "Ward: -40% dmg taken, 3t.", 26, 7, 5, "shield", 0.0),
         ],
     },
     "Wizard": {
         "icon": "\U0001f9d9", "color": "#5db8ff",
         "flavor": "Glass cannon of the Arcane. Deletes rooms, naps after.",
-        "base": {"max_hp": 74, "max_mp": 80, "atk": 18, "df": 5, "spd": 9, "crit": 15, "dodge": 7},
+        "base": {"max_hp": 88, "max_mp": 80, "atk": 18, "df": 5, "spd": 9, "crit": 15, "dodge": 7},
         "grow": {"max_hp": 12, "max_mp": 10, "atk": 4.2, "df": 1.1, "spd": 0.7},
         "skills": [
             Skill("zap", "Staff Jab", "\U0001fa84", "A reluctant bonk.", 0, 0, 1, "basic", 1.0),
@@ -413,21 +413,29 @@ def hero_max_mp(hero: dict) -> int:
 
 def make_monster(depth: int, hero_level: int, boss: bool = False) -> Fighter:
     d = dungeon_for_depth(depth)
+    # The Deep gets meaner faster than heroes grow: flat for depths 1-2,
+    # then ~2%/level compounded. x1.0 @2, x1.2 @10, x1.4 @20, x1.7 @30.
+    # Boss fights stay short (lean HP) but hit harder with depth;
+    # attrition, not one-shots, should end runs. Depth 20 = a good run.
+    power = 1.02 ** max(0, depth - 2)
+    tank = power ** 0.5
     if boss:
         first, title = d["boss"]
         name = f"{first} {title}"
         lvl = hero_level + random.randint(0, 1)
-        hp = int((55 + depth * 34 + lvl * 14) * 2.1)
-        atk = int((7 + depth * 2.6 + lvl * 1.5) * 1.35)
-        df_ = int(4 + depth * 1.8 + lvl * 0.9)
+        # Bosses ramp with depth instead of spiking early (Griznak mercy rule).
+        # Lean HP (short, violent fights) + attack that grows with depth.
+        hp = int((55 + depth * 34 + lvl * 14) * (1.5 + depth * 0.03) * power)
+        atk = int((7 + depth * 2.6 + lvl * 1.5) * (1.05 + depth * 0.012) * power)
+        df_ = int((4 + depth * 1.8 + lvl * 0.9) * tank)
         spd = int(6 + depth * 0.7 + lvl * 0.3)
         kind = "boss"
     else:
         name = random.choice(d["mobs"])
         lvl = max(1, hero_level + random.randint(-1, 1))
-        hp = int(30 + depth * 20 + lvl * 11 + random.randint(0, 12))
-        atk = int(5 + depth * 1.9 + lvl * 1.2 + random.randint(0, 3))
-        df_ = int(2 + depth * 1.2 + lvl * 0.7)
+        hp = int((30 + depth * 20 + lvl * 11 + random.randint(0, 12)) * power)
+        atk = int((5 + depth * 1.9 + lvl * 1.2 + random.randint(0, 3)) * power)
+        df_ = int((2 + depth * 1.2 + lvl * 0.7) * tank)
         spd = int(5 + depth * 0.5 + lvl * 0.35 + random.randint(-1, 2))
         kind = "mob"
     return Fighter(name=name, kind=kind, level=lvl, max_hp=hp, hp=hp,
@@ -476,8 +484,8 @@ def hero_strike(hero: dict, foe: Fighter, skill: Skill) -> list[str]:
             msgs(f"[{cname}]\U0001f4a8 {skill.name}[/] — [cyan]+18% dodge[/] for 3 turns!")
         return out
     if skill.kind == "shield":
-        hero["buffs"]["ward"] = [45, 3]
-        msgs(f"[{cname}]\U0001f54c {skill.name}[/] — a dome of dawnlight ([cyan]-45% damage[/], 3t).")
+        hero["buffs"]["ward"] = [40, 3]
+        msgs(f"[{cname}]\U0001f54c {skill.name}[/] — a dome of dawnlight ([cyan]-40% damage[/], 3t).")
         return out
 
     # damaging skills
@@ -504,7 +512,7 @@ def hero_strike(hero: dict, foe: Fighter, skill: Skill) -> list[str]:
         foe.buffs["spd"] = [foe.buffs.get("spd", [0, 0])[0] - 4, 3]
         msgs(f"[cyan]  \u2744\ufe0f {foe.name} is slowed (-4 SPD, 3t).[/]")
     if skill.kind == "drain":
-        heal = int(hero_max_hp(hero) * 0.12)
+        heal = int(hero_max_hp(hero) * 0.10)
         hero["hp"] = min(hero_max_hp(hero), hero["hp"] + heal)
         msgs(f"[yellow]  \u2728 Radiance mends you for {heal} HP.[/]")
     return out
