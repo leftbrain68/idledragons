@@ -8,10 +8,10 @@ Run:
     # or
     pip install rich && python idlerpg.py
 
-Controls (during the run):
-    P ........ drink HP potion      M .... drink MP potion
-    SPACE .... pause / resume       +/- .. game speed
-    Q ........ quit (saves highscore if dead... quitting alive = abandon run)
+Controls (during the run — a pure watcher, no combat input):
+    SPACE .... pause / resume       +/- .. game speed (0.5x-8x)
+    A ........ auto-potions on/off  Q .... quit (abandon run, not scored)
+    Potions quaff themselves when needed. Sit back and watch.
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ import random
 import select
 import sys
 import time
+import zlib
 from collections import deque
 from dataclasses import dataclass, field
 
@@ -131,18 +132,135 @@ BOSS_TITLES = ["the Unsleeping", "the Maw Below", "the Ninth Hunger", "the Crown
                "the Pale Tyrant", "the Echo of Ruin", "the Deep Ordained", "the Last Argument"]
 
 
+# Fixed named bosses for depths 9-40: the same challenge for every hero,
+# every run. (Depths 1-8 live in DUNGEONS; past 40 the Deep Dark names
+# its own — still deterministic per depth, so those never change either.)
+DEEP_BOSSES = [
+    (9,  "Tharzarr",  "the Echo of Ruin"),
+    (10, "Drakphage", "the Unsleeping"),
+    (11, "Yxmirax",   "the Deep Ordained"),
+    (12, "Balgore",   "the Maw Below"),
+    (13, "Oomzarr",   "the Pale Tyrant"),
+    (14, "Kharvex",   "the Crown of Worms"),
+    (15, "Zulphage",  "the Render"),
+    (16, "Tharquam",  "the Wingless Dread"),
+    (17, "Mordrex",   "the Throne of Flies"),
+    (18, "Vexmorth",  "the Last Argument"),
+    (19, "Skarlith",  "the Ember Saint"),
+    (20, "Xarzoth",   "the God Below Rent"),
+    (21, "Balzoth",   "the Hollow King"),
+    (22, "Oomthune",  "the Starved Choir"),
+    (23, "Yxquath",   "the Mouth of the Deep"),
+    (24, "Tharzoth",  "the Twice-Drowned King"),
+    (25, "Vexmirax",  "the Ninth Hunger"),
+    (26, "Drakovex",  "the Chain of Night"),
+    (27, "Skardrex",  "the Furnace Cold"),
+    (28, "Morgath",   "the Father of Echoes"),
+    (29, "Kharzarr",  "the Siege Eternal"),
+    (30, "Thulzarr",  "the Tide That Hates"),
+    (31, "Yxlim",     "the Smallest God"),
+    (32, "Drexbal",   "the Anvil of Teeth"),
+    (33, "Vexthune",  "the Elegy"),
+    (34, "Skalphage", "the Map-Eater"),
+    (35, "Oomgore",   "the Red Silence"),
+    (36, "Balqua",    "the Thirsting Dark"),
+    (37, "Zulmorth",  "the Penultimate"),
+    (38, "Kharqua",   "the Warden of the Last Door"),
+    (39, "Drextharr", "the Almost God"),
+    (40, "Ereboss",   "the Bottom of Everything"),
+]
+assert [d for d, _, _ in DEEP_BOSSES] == list(range(9, 41))
+
+
+# --------------------------------------------------------------------------- #
+# Creature types — every monster is something: goblin, spider, dragon...
+# Each type has a small combat trait (see hero_strike / foe_strike).
+# --------------------------------------------------------------------------- #
+
+CREATURE_TYPES = {
+    "Aberration": "#d45dff",
+    "Beast": "#9db36a",
+    "Dragon": "#ff5b5b",
+    "Elemental": "#ff9a3c",
+    "Fiend": "#b03a2e",
+    "Giant": "#c9a227",
+    "Humanoid": "#5db8ff",
+    "Monstrosity": "#e08e45",
+    "Plant": "#5dff7a",
+    "Undead": "#9a9a9a",
+}
+
+MOB_TYPES = {
+    "Cellar Rat": "Beast", "Giant Centipede": "Beast",
+    "Kobold Sneak": "Humanoid", "Cave Bat Swarm": "Beast",
+    "Goblin Cutter": "Humanoid", "Goblin Slinger": "Humanoid",
+    "Worg Pup": "Beast", "Hobgoblin Grunt": "Humanoid",
+    "Myconid Sprout": "Plant", "Spore Bat": "Beast",
+    "Cave Fisher": "Monstrosity", "Gas Spore": "Plant",
+    "Skeleton Warrior": "Undead", "Drowned Zombie": "Undead",
+    "Crypt Ghoul": "Undead", "Wight Acolyte": "Undead",
+    "Magma Mephit": "Elemental", "Fire Snake": "Elemental",
+    "Ash Zombie": "Undead", "Duergar Deserter": "Humanoid",
+    "Giant Spider": "Beast", "Drow Scout": "Humanoid",
+    "Drider Spawn": "Monstrosity", "Shadow Mastiff": "Monstrosity",
+    "Air Elemental Wisp": "Elemental", "Gargoyle": "Elemental",
+    "Kenku Stormcaller": "Humanoid", "Blue Dragon Wyrmling": "Dragon",
+    "Ogre Brute": "Giant", "Troll Regenerator": "Giant",
+    "Mind Flayer Exile": "Aberration", "Young Red Dragon": "Dragon",
+    "Depth Horror": "Aberration", "Starved Abomination": "Monstrosity",
+    "Whisper Spawn": "Fiend", "Chitin Stalker": "Beast",
+}
+
+BOSS_TYPES = {
+    "Squeakus": "Beast", "Griznak": "Humanoid",
+    "Mother Mycelia": "Plant", "Lord Vexmar": "Undead",
+    "Cinder Maw": "Elemental", "Vexalyth": "Humanoid",
+    "Sussurax": "Dragon", "Vermithrax Pejorative": "Dragon",
+    "Tharzarr": "Aberration", "Drakphage": "Dragon",
+    "Yxmirax": "Aberration", "Balgore": "Fiend",
+    "Oomzarr": "Undead", "Kharvex": "Fiend",
+    "Zulphage": "Monstrosity", "Tharquam": "Dragon",
+    "Mordrex": "Fiend", "Vexmorth": "Aberration",
+    "Skarlith": "Elemental", "Xarzoth": "Dragon",
+    "Balzoth": "Undead", "Oomthune": "Aberration",
+    "Yxquath": "Aberration", "Tharzoth": "Undead",
+    "Vexmirax": "Dragon", "Drakovex": "Dragon",
+    "Skardrex": "Elemental", "Morgath": "Undead",
+    "Kharzarr": "Giant", "Thulzarr": "Elemental",
+    "Yxlim": "Aberration", "Drexbal": "Monstrosity",
+    "Vexthune": "Undead", "Skalphage": "Aberration",
+    "Oomgore": "Fiend", "Balqua": "Fiend",
+    "Zulmorth": "Undead", "Kharqua": "Monstrosity",
+    "Drextharr": "Dragon", "Ereboss": "Aberration",
+}
+
+
+def boss_type(first: str) -> str:
+    """Creature type of a boss by first name. Handcrafted to depth 40;
+    deeper names are generated — typed deterministically (crc32) so the
+    same depth is still the same challenge every run."""
+    if first in BOSS_TYPES:
+        return BOSS_TYPES[first]
+    return sorted(CREATURE_TYPES)[zlib.crc32(first.encode()) % len(CREATURE_TYPES)]
+
+
 def dungeon_for_depth(depth: int) -> dict:
     if depth <= len(DUNGEONS):
         return DUNGEONS[depth - 1]
-    rng = random.Random(10_000 + depth)
+    if 9 <= depth <= 40:
+        _, first, title = next(e for e in DEEP_BOSSES if e[0] == depth)
+        boss = (first, title)
+    else:
+        rng = random.Random(10_000 + depth)
+        boss = (f"{rng.choice(BOSS_FIRST)}{rng.choice(BOSS_LAST)}".title(),
+                rng.choice(BOSS_TITLES))
     return {
         "name": f"The Deep Dark — Stratum {depth}",
         "icon": "\U0001f573",
         "color": "#d45dff",
         "desc": "No map survives past this point.",
         "mobs": [f"Depth Horror", "Starved Abomination", "Whisper Spawn", "Chitin Stalker"],
-        "boss": (f"{rng.choice(BOSS_FIRST)}{rng.choice(BOSS_LAST)}".title(),
-                 rng.choice(BOSS_TITLES)),
+        "boss": boss,
     }
 
 
@@ -248,6 +366,7 @@ class Fighter:
     spd: int = 5
     crit: int = 10       # percent
     dodge: int = 5       # percent
+    ctype: str = ""      # creature type: Beast, Dragon, Undead... (mobs/bosses only)
     buffs: dict = field(default_factory=dict)   # stat -> [amount, turns]
     dots: list = field(default_factory=list)    # [dmg, turns, label]
 
@@ -448,7 +567,11 @@ def make_monster(depth: int, hero_level: int, boss: bool = False) -> Fighter:
     if boss:
         first, title = d["boss"]
         name = f"{first} {title}"
-        lvl = hero_level + random.randint(0, 1)
+        ctype = boss_type(first)
+        # Boss level comes from the dungeon, not the hero: depth 20 always
+        # fields a level-22 boss, so every character faces the same wall.
+        # (depth + 2 mirrors the hero level a typical run has on arrival.)
+        lvl = depth + 2
         # Bosses ramp with depth instead of spiking early (Griznak mercy rule).
         # Lean HP (short, violent fights) + attack that grows with depth.
         hp = int((55 + depth * 34 + lvl * 14) * (1.5 + depth * 0.03) * power)
@@ -458,15 +581,20 @@ def make_monster(depth: int, hero_level: int, boss: bool = False) -> Fighter:
         kind = "boss"
     else:
         name = random.choice(d["mobs"])
+        ctype = MOB_TYPES.get(name, "Monstrosity")
         lvl = max(1, hero_level + random.randint(-1, 1))
         hp = int((30 + depth * 20 + lvl * 11 + random.randint(0, 12)) * power)
         atk = int((5 + depth * 1.9 + lvl * 1.2 + random.randint(0, 3)) * power)
         df_ = int((2 + depth * 1.2 + lvl * 0.7) * tank)
         spd = int(5 + depth * 0.5 + lvl * 0.35 + random.randint(-1, 2))
         kind = "mob"
+    # Type traits baked into stats: Beasts are skittish, Monstrosities all teeth.
+    base_crit = 8 if not boss else 14
+    base_dodge = 5 if not boss else 8
     return Fighter(name=name, kind=kind, level=lvl, max_hp=hp, hp=hp,
-                   atk=atk, df=df_, spd=spd,
-                   crit=8 if not boss else 14, dodge=5 if not boss else 8)
+                   atk=atk, df=df_, spd=spd, ctype=ctype,
+                   crit=base_crit + (5 if ctype == "Monstrosity" else 0),
+                   dodge=base_dodge + (4 if ctype == "Beast" else 0))
 
 
 # --------------------------------------------------------------------------- #
@@ -494,6 +622,8 @@ def hero_strike(hero: dict, foe: Fighter, skill: Skill) -> list[str]:
 
     atk = hero_eff(hero, "atk")
     crit_c = hero["crit"] + (5 if hero["cls"] == "Rogue" else 0)
+    if foe.ctype == "Aberration":
+        crit_c = max(0, crit_c - 5)  # mortal minds fray before the unreal
 
     if skill.kind == "heal":
         amt = int(hero_max_hp(hero) * skill.heal_pct)
@@ -523,24 +653,39 @@ def hero_strike(hero: dict, foe: Fighter, skill: Skill) -> list[str]:
         return out
     raw = atk * mult * random.uniform(0.88, 1.15) - foe.df * 0.55
     dmg = max(1, int(raw * (1.75 if is_crit else 1.0)))
+    kindled = skill.key == "fire" and foe.ctype == "Plant"
+    if kindled:
+        dmg = int(dmg * 1.25)  # dry tinder
     foe.hp = max(0, foe.hp - dmg)
     d20 = random.randint(1, 20)
     crit_txt = " [bold yellow]\u2605CRIT\u2605[/]" if is_crit else ""
     msgs(f"[{cname}]{skill.icon} {skill.name}[/] [{d20:>2}{D20}] → [bold red]{dmg}[/] to {foe.name}.{crit_txt}")
+    if kindled:
+        msgs(f"[green]  \U0001f525 Dry tinder! {foe.name} burns extra.[/]")
 
     if skill.key == "sunder":
         foe.buffs["df"] = [foe.buffs.get("df", [0, 0])[0] - 3, 3]
         msgs(f"[dim]  {foe.name}'s armor cracks (-3 DEF, 3t).[/]")
     if skill.kind == "dot":
-        foe.dots.append([int(4 + hero["level"] * 1.8), 3, "venom"])
-        msgs(f"[green]  \u2620\ufe0f Venom courses through {foe.name} (3t).[/]")
+        if foe.ctype == "Undead":
+            msgs(f"[dim]  \u2620\ufe0f No blood to poison — {foe.name} is already dead.[/]")
+        else:
+            foe.dots.append([int(4 + hero["level"] * 1.8), 3, "venom"])
+            msgs(f"[green]  \u2620\ufe0f Venom courses through {foe.name} (3t).[/]")
     if skill.kind == "slow":
-        foe.buffs["spd"] = [foe.buffs.get("spd", [0, 0])[0] - 4, 3]
-        msgs(f"[cyan]  \u2744\ufe0f {foe.name} is slowed (-4 SPD, 3t).[/]")
+        if foe.ctype == "Elemental":
+            msgs(f"[dim]  \u2744\ufe0f No blood to chill — {foe.name} barely notices.[/]")
+        else:
+            foe.buffs["spd"] = [foe.buffs.get("spd", [0, 0])[0] - 4, 3]
+            msgs(f"[cyan]  \u2744\ufe0f {foe.name} is slowed (-4 SPD, 3t).[/]")
     if skill.kind == "drain":
         heal = int(hero_max_hp(hero) * 0.10)
         hero["hp"] = min(hero_max_hp(hero), hero["hp"] + heal)
         msgs(f"[yellow]  \u2728 Radiance mends you for {heal} HP.[/]")
+    if is_crit and foe.ctype == "Fiend" and foe.alive:
+        rebuke = max(1, dmg // 10)
+        hero["hp"] = max(0, hero["hp"] - rebuke)
+        msgs(f"[red]  \U0001f608 Hellish rebuke! {rebuke} damage recoils onto you.[/]")
     return out
 
 
@@ -565,11 +710,23 @@ def foe_strike(foe: Fighter, hero: dict) -> list[str]:
     ward = hero["buffs"].get("ward", [0, 0])[0]
     if ward:
         dmg = max(1, int(dmg * (1 - ward / 100)))
+    breath = ""
+    if foe.ctype == "Dragon" and random.randint(1, 100) <= 12:
+        if hero.get("cls") == "Rogue":
+            dmg = int(dmg * 1.1)
+            breath = " [red]\U0001f525 BREATH[/] [dim](evaded most of it!)[/]"
+        else:
+            dmg = int(dmg * 1.4)
+            breath = " [red]\U0001f525 BREATH[/]"
     hero["hp"] = max(0, hero["hp"] - dmg)
     crit_txt = " [bold yellow]\u2605CRIT\u2605[/]" if is_crit else ""
     enrage = " [red]\U0001f621 ENRAGED[/]" if foe.kind == "boss" and foe.hp < foe.max_hp * 0.3 else ""
     icon = "\U0001f480" if foe.kind == "boss" else "\u2694\ufe0f"
-    msgs(f"[red]{icon} {foe.name}[/] hits you for [bold red]{dmg}[/].{crit_txt}{enrage}")
+    msgs(f"[red]{icon} {foe.name}[/] hits you for [bold red]{dmg}[/].{crit_txt}{breath}{enrage}")
+    if foe.ctype == "Giant" and hero["hp"] > 0 and random.randint(1, 100) <= 15:
+        sweep = max(1, dmg // 2)
+        hero["hp"] = max(0, hero["hp"] - sweep)
+        msgs(f"[red]  \U0001f4a5 Sweeping blow! A second {sweep} damage.[/]")
     return out
 
 
@@ -642,24 +799,24 @@ def max_potions(hero: dict) -> int:
     return MAX_POTIONS_BASE + hero["level"] // 3
 
 
-def drink_hp(hero: dict, manual: bool = False) -> str | None:
+def drink_hp(hero: dict) -> str | None:
+    # Potions quaff themselves — this is a watcher, not a sipper.
     if hero["hp_pots"] <= 0:
-        return "[dim]No HP potions left![/]" if manual else None
+        return None
     if hero["hp"] >= hero_max_hp(hero):
-        return "[dim]Already at full health.[/]" if manual else None
+        return None
     hero["hp_pots"] -= 1
     hero["potions_used"] += 1
     amt = int(hero_max_hp(hero) * POTION_HP_PCT)
     hero["hp"] = min(hero_max_hp(hero), hero["hp"] + amt)
-    tag = "quaff" if manual else "auto-quaff"
-    return f"[red]\U0001f9ea HP potion {tag}[/] — [green]+{amt} HP[/] ({hero['hp_pots']} left)."
+    return f"[red]\U0001f9ea HP potion auto-quaff[/] — [green]+{amt} HP[/] ({hero['hp_pots']} left)."
 
 
-def drink_mp(hero: dict, manual: bool = False) -> str | None:
+def drink_mp(hero: dict) -> str | None:
     if hero["mp_pots"] <= 0:
-        return "[dim]No MP potions left![/]" if manual else None
+        return None
     if hero["mp"] >= hero_max_mp(hero):
-        return "[dim]Mana already full.[/]" if manual else None
+        return None
     hero["mp_pots"] -= 1
     hero["potions_used"] += 1
     amt = int(hero_max_mp(hero) * POTION_MP_PCT)
@@ -674,6 +831,8 @@ def grant_rewards(hero: dict, foe: Fighter) -> list[str]:
     if boss:
         xp = int(xp * 2.2)
     gold = int(random.randint(8, 20) + foe.level * 6 + (60 if boss else 0))
+    if foe.ctype == "Humanoid":
+        gold = int(gold * 1.25)  # they carry purses
     hero["xp"] += xp
     hero["gold"] += gold
     hero["kills"] += 1
@@ -798,7 +957,9 @@ def foe_panel(foe: Fighter | None, depth: int, room: int, boss_room: bool) -> Pa
     body.add_row("DMG", f"[red]{int(foe.eff('atk'))}[/]   ARM {int(foe.eff('df'))}   SPD {int(foe.eff('spd'))}")
     style = "bold red" if foe.kind == "boss" else "red"
     room_txt = "BOSS" if boss_room else f"{room}/{ROOMS_PER_LEVEL}"
-    return Panel(body, title=f"[{style}]\U0001f479 {foe.name}[/] [dim]· Lv{foe.level} · {room_txt}[/]",
+    tcolor = CREATURE_TYPES.get(foe.ctype, "white")
+    tlabel = f"[{tcolor}]{foe.ctype}[/]" if foe.ctype else ""
+    return Panel(body, title=f"[{style}]\U0001f479 {foe.name}[/] [dim]· Lv{foe.level} · {room_txt}[/] {tlabel}",
                  border_style="red" if foe.kind == "boss" else "#8a7a6a", box=box.ROUNDED)
 
 
@@ -830,7 +991,7 @@ def skills_panel(hero: dict, paused: bool, speed: float, base_tick: float, auto_
         else:
             t.add_row(f"[white]{s.icon} {s.name}[/]", f"[dim]{s.mp}MP[/]" if s.mp else "[green]ready[/]")
     t.add_row("", "")
-    t.add_row("[dim][P]HP-pot  [M]MP-pot[/]", "[dim][Space]pause  [Q]quit[/]")
+    t.add_row("[dim]\U0001f9ea potions quaff themselves[/]", "[dim][Space]pause  [Q]quit[/]")
     t.add_row(f"[dim]speed {speed:g}x ({base_tick / speed:.2f}s) [+/-][/]", "[green]AUTO-POTS ON[/]" if auto_pots else "[red]AUTO-POTS OFF [A][/]")
     if paused:
         t.add_row("[bold yellow]\u23f8\ufe0f PAUSED[/]", "")
@@ -1066,14 +1227,6 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
                 return True
             elif key == " ":
                 paused = not paused
-            elif key == "p":
-                m = drink_hp(hero, manual=True)
-                if m:
-                    log.append(m)
-            elif key == "m":
-                m = drink_mp(hero, manual=True)
-                if m:
-                    log.append(m)
             elif key == "a":
                 auto_pots = not auto_pots
                 log.append("[green]Auto-potions ON.[/]" if auto_pots else "[yellow]Auto-potions OFF.[/]")
@@ -1204,7 +1357,7 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
 
             # ---- death? ----
             if hero["hp"] <= 0:
-                killer = foe.name
+                killer = f"{foe.name} · {foe.ctype}" if foe.ctype else foe.name
                 live.stop()
                 entry = {"name": hero["name"], "cls": hero["cls"], "depth": depth,
                          "level": hero["level"], "kills": hero["kills"],
