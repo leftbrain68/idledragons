@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-IDLEDRAGONS — a pretty DnD-themed terminal idleRPG.
+IDLEDRAGONS — a DnD-themed terminal idleRPG.
 Single-screen watcher: pick a name + class, then watch the dive unfold.
 
 Run:
@@ -1496,7 +1496,7 @@ def creation_screen(args) -> tuple[str, str]:
     c = Console()
     c.clear()
     c.print(Align.center(Text(TITLE_ART, style="bold gold1")))
-    c.print(Align.center(Text("~ a pretty little terminal idleRPG ~", style="italic dim")))
+    c.print(Align.center(Text("~ a terminal idleRPG ~", style="italic dim")))
     c.print()
     t = Table(title="\U0001f3b2 Choose thy class", box=box.ROUNDED, expand=False)
     t.add_column("#", justify="right", style="bold yellow")
@@ -1807,7 +1807,7 @@ def run_game(name: str, cls: str, tick: float, demo_ticks: int = 0) -> None:
 # --------------------------------------------------------------------------- #
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="IDLEDRAGONS — a pretty DnD terminal idleRPG")
+    ap = argparse.ArgumentParser(description="IDLEDRAGONS — a DnD terminal idleRPG")
     ap.add_argument("--tick", type=float, default=TICK_DEFAULT, help="seconds per tick (default 1.0)")
     ap.add_argument("--highscores", action="store_true", help="show hall of fallen heroes and exit")
     ap.add_argument("--reset-highscores", action="store_true", help="wipe highscores and exit")

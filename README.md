@@ -1,6 +1,6 @@
 # ⚔ IDLEDRAGONS ⚔
 
-A pretty DnD-themed **terminal idleRPG**. Pick a name and a class, then watch
+A DnD-themed **terminal idleRPG**. Pick a name and a class, then watch
 the dungeon dive unfold on a single screen — no input required beyond that.
 Permadeath. Every run ends in the Hall of Fallen Heroes.
 
