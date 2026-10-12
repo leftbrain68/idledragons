@@ -1595,7 +1595,7 @@ def hero_panel(hero: dict) -> Panel:
 
     body = Table(box=None, show_header=False, padding=(0, 1), expand=True)
     body.add_column(style="dim", width=5, justify="left")
-    body.add_column(justify="left")
+    body.add_column(justify="left", ratio=1)
     body.add_row("LV", f"[bold yellow]{hero['level']}[/]  [dim]{hero['xp']:>{len(str(need))}}/{need} XP[/] [cyan]{bar(hero['xp'], need, 12)}[/]")
     body.add_row("HP", f"[{hp_color(php)}]{bar(hero['hp'], mxhp, 12)}[/] [bold]{hero['hp']:>{len(str(mxhp))}}/{mxhp}[/]")
     body.add_row("MP", f"[blue]{bar(hero['mp'], mxmp, 12)}[/] [bold]{hero['mp']:>{len(str(mxmp))}}/{mxmp}[/]")
@@ -1617,12 +1617,12 @@ def hero_panel(hero: dict) -> Panel:
 def foe_panel(foe: Fighter | None, depth: int, room: int, boss_room: bool) -> Panel:
     if foe is None:
         return Panel(Align.center("[dim]…the dark is quiet…[/]"), title="\U0001f47e Encounter",
-                     border_style="dim", box=box.ROUNDED)
+                     title_align="left", border_style="dim", box=box.ROUNDED)
     p = foe.hp / max(1, foe.max_hp)
     tag = " [red]\U0001f480 BOSS[/]" if foe.kind == "boss" else ""
     body = Table(box=None, show_header=False, padding=(0, 1), expand=True)
     body.add_column(style="dim", width=5, justify="left")
-    body.add_column(justify="left")
+    body.add_column(justify="left", ratio=1)
     body.add_row("LV", f"[bold]{foe.level}[/]{tag}")
     w = len(str(foe.max_hp))
     body.add_row("HP", f"[{hp_color(p)}]{bar(foe.hp, foe.max_hp, 14)}[/] [bold]{foe.hp:>{w}}/{foe.max_hp}[/]")
@@ -1719,7 +1719,7 @@ def arena_panel(depth: int, room: int, boss_room: bool, turn: int, state: str) -
 def skills_panel(hero: dict, paused: bool, speed: float, base_tick: float, auto_pots: bool) -> Panel:
     t = Table(box=None, show_header=False, padding=(0, 1), expand=True)
     t.add_column(width=16)
-    t.add_column()
+    t.add_column(ratio=1)
     if hero["cls"] == "Rogue":
         armed = hero.get("ambush", False)
         t.add_row("[bold yellow]\U0001f5e1\ufe0f Ambush[/]" if armed else "[dim]\U0001f5e1\ufe0f Ambush[/]",
@@ -1741,7 +1741,7 @@ def skills_panel(hero: dict, paused: bool, speed: float, base_tick: float, auto_
               "[green]AUTO-POTS ON[/] [bold yellow][A][/]" if auto_pots else "[red]AUTO-POTS OFF[/] [bold yellow][A][/]")
     if paused:
         t.add_row("[bold yellow]\u23f8\ufe0f PAUSED[/]", "")
-    return Panel(t, title="\u2728 Skills & Keys", border_style="cyan", box=box.ROUNDED)
+    return Panel(t, title="\u2728 Skills & Keys", title_align="left", border_style="cyan", box=box.ROUNDED)
 
 
 def log_panel(log: deque) -> Panel:
@@ -1749,24 +1749,32 @@ def log_panel(log: deque) -> Panel:
         txt = "[dim]Your tale begins…[/]"
     else:
         txt = "\n".join(log)
-    return Panel(txt, title="\U0001f4dc Chronicle", border_style="#8a7a6a", box=box.ROUNDED)
+    return Panel(txt, title="\U0001f4dc Chronicle", title_align="left", border_style="#8a7a6a", box=box.ROUNDED)
 
 
 def build_layout(hero, foe, log, depth, room, boss_room, turn, speed, base_tick, paused, auto_pots, state) -> Layout:
     lay = Layout()
     lay.split_column(
         Layout(name="head", size=3),
-        Layout(name="mid", ratio=1),
-        Layout(name="bot", ratio=1),
+        Layout(name="body", ratio=1),
     )
-    lay["mid"].split_row(
+    # One shared right column (monster over skills) so their borders align
+    # by construction at every terminal width — no fractional rounding.
+    lay["body"].split_row(
+        Layout(name="leftarea", ratio=60),
+        Layout(name="rightcol", ratio=34),
+    )
+    lay["leftarea"].split_column(
+        Layout(name="toprow", ratio=1),
+        Layout(name="log", ratio=1),
+    )
+    lay["toprow"].split_row(
         Layout(name="left", ratio=34),
         Layout(name="center", ratio=26),
-        Layout(name="right", ratio=34),
     )
-    lay["bot"].split_row(
-        Layout(name="log", ratio=62),
-        Layout(name="sk", ratio=38),
+    lay["rightcol"].split_column(
+        Layout(name="right", ratio=1),
+        Layout(name="sk", ratio=1),
     )
     d = dungeon_for_depth(depth)
     lay["head"].update(Panel(
