@@ -297,7 +297,7 @@ MOB_TYPES = {
 MOB_ICONS = {
     "Cellar Rat": "\U0001f400", "Giant Centipede": "\U0001f41b",
     "Kobold Sneak": "\U0001f98e", "Cave Bat Swarm": "\U0001f987",
-    "Goblin Cutter": "\U0001f5e1", "Goblin Slinger": "\U0001f3f9",
+    "Goblin Cutter": "\U0001f5e1", "Goblin Slinger": "→",
     "Worg Pup": "\U0001f43a", "Hobgoblin Grunt": "\U0001f479",
     "Myconid Sprout": "\U0001f344", "Spore Bat": "\U0001f987",
     "Cave Fisher": "\U0001f3a3", "Gas Spore": "\U0001f4a8",
@@ -305,25 +305,25 @@ MOB_ICONS = {
     "Crypt Ghoul": "\U0001f47b", "Wight Acolyte": "\U0001f9db",
     "Magma Mephit": "\U0001f525", "Fire Snake": "\U0001f40d",
     "Ash Zombie": "\U0001f9df", "Duergar Deserter": "\u26cf",
-    "Giant Spider": "\U0001f577", "Drow Scout": "\U0001f977",
+    "Giant Spider": "\U0001f577", "Drow Scout": "\U0001f319",
     "Drider Spawn": "\U0001f578", "Shadow Mastiff": "\U0001f43a",
     "Air Elemental Wisp": "✨", "Gargoyle": "\U0001f5ff",
     "Kenku Stormcaller": "\U0001f426", "Blue Dragon Wyrmling": "\U0001f409",
     "Ogre Brute": "\U0001f44a", "Troll Regenerator": "\U0001f9cc",
     "Mind Flayer Exile": "\U0001f9e0", "Young Red Dragon": "\U0001f432",
     "Depth Horror": "\U0001f441", "Starved Abomination": "\U0001f37d",
-    "Whisper Spawn": "\U0001f32b", "Chitin Stalker": "\U0001fab2",
-    "Silt Crab": "\U0001f980", "Drowned Sailor": "⚓",
+    "Whisper Spawn": "\U0001f32b", "Chitin Stalker": "\U0001f41e",
+    "Silt Crab": "\U0001f980", "Drowned Sailor": "\U0001f30a",
     "Brine Hag": "\U0001f9d9", "Wreck Revenant": "\U0001f30a",
     "Cinder Imp": "\U0001f608", "Ash Serpent": "\U0001f40d",
-    "Charred Husk": "\U0001f32b", "Slag Golem": "\U0001faa8",
+    "Charred Husk": "\U0001f32b", "Slag Golem": "\U0001f5ff",
     "Nothic Whisperer": "\U0001f9ff", "Choker": "\U0001f4aa",
-    "Darkmantle": "\U0001f302", "Grell": "\U0001fabc",
+    "Darkmantle": "\U0001f302", "Grell": "\U0001f419",
     "Ice Mephit": "\U0001f9ca", "Frost Wight": "❄️",
-    "Winter Wolf": "\U0001f43a", "Yeti": "⛄",
-    "Lemure": "\U0001fae0", "Spined Devil": "\U0001f994",
+    "Winter Wolf": "\U0001f43a", "Yeti": "⛰",
+    "Lemure": "\U0001f4a9", "Spined Devil": "\U0001f994",
     "Hell Hound": "\U0001f525", "Ashen Cultist": "\U0001f56f",
-    "Hill Giant": "\U0001faa8", "Stone Giant": "\U0001f5ff",
+    "Hill Giant": "\U0001f44a", "Stone Giant": "\U0001f5ff",
     "Wyvern": "\U0001f426", "Griffon": "\U0001f985",
     "Beholderkin": "\U0001f441", "Intellect Devourer": "\U0001f9e0",
     "Cloaker": "\U0001f302", "Aboleth Spawn": "\U0001f991",
@@ -339,8 +339,8 @@ BOSS_ICONS = {
     "Tharzarr": "\U0001f441", "Drakphage": "\U0001f409",
     "Yxmirax": "\U0001f300", "Balgore": "\U0001f608",
     "Oomzarr": "\U0001f9db", "Kharvex": "\U0001f479",
-    "Zulphage": "\U0001fa78", "Tharquam": "\U0001f987",
-    "Mordrex": "\U0001fab0", "Vexmorth": "\U0001f311",
+    "Zulphage": "❤", "Tharquam": "\U0001f987",
+    "Mordrex": "\U0001f41d", "Vexmorth": "\U0001f311",
     "Skarlith": "\U0001f525", "Xarzoth": "\U0001f451",
     "Balzoth": "⚰️", "Oomthune": "\U0001f3b5",
     "Yxquath": "\U0001f444", "Tharzoth": "\U0001f30a",
@@ -350,7 +350,7 @@ BOSS_ICONS = {
     "Yxlim": "\U0001f90f", "Drexbal": "⚒️",
     "Vexthune": "\U0001f3bb", "Skalphage": "\U0001f5fa",
     "Oomgore": "\U0001f534", "Balqua": "\U0001f4a7",
-    "Zulmorth": "⏳", "Kharqua": "\U0001f6aa",
+    "Zulmorth": "⌛", "Kharqua": "\U0001f6aa",
     "Drextharr": "✨", "Ereboss": "\U0001f30c",
 }
 
@@ -533,13 +533,13 @@ CLASSES: dict[str, dict] = {
         ],
     },
     "Ranger": {
-        "icon": "\U0001f3f9", "color": "#2dd4bf",
+        "icon": "→", "color": "#2dd4bf",
         "flavor": "Eyes of the wild. Fast, precise, never without an arrow.",
-        "base": {"max_hp": 98, "max_mp": 40, "atk": 14, "df": 7, "spd": 12, "crit": 20, "dodge": 10},
+        "base": {"max_hp": 102, "max_mp": 40, "atk": 14, "df": 8, "spd": 12, "crit": 20, "dodge": 10},
         "grow": {"max_hp": 16, "max_mp": 5, "atk": 3.4, "df": 1.6, "spd": 0.9},
         "skills": [
-            Skill("shot", "Longshot", "\U0001f3f9", "A single true arrow.", 0, 0, 1, "basic", 1.0),
-            Skill("volley", "Volley", "\U0001f4a8", "1.8x sky-darkening hail.", 14, 4, 1, "nuke", 1.8),
+            Skill("shot", "Longshot", "→", "A single true arrow.", 0, 0, 1, "basic", 1.0),
+            Skill("volley", "Volley", "\U0001f4a8", "2.0x sky-darkening hail.", 14, 4, 1, "nuke", 2.0),
             Skill("serp", "Serpent Arrow", "\U0001f40d", "1.1x + venom burn (3t).", 12, 5, 3, "dot", 1.1),
             Skill("snare", "Entangling Shot", "\U0001f578", "1.3x + root foe (-4 SPD 3t).", 16, 5, 5, "slow", 1.3),
         ],
@@ -564,7 +564,7 @@ CLASSES: dict[str, dict] = {
         "skills": [
             Skill("swing", "Greataxe Swing", "\U0001fa93", "Subtlety is for the dead.", 0, 0, 1, "basic", 1.0),
             Skill("cleave", "Reckless Cleave", "\U0001f4a5", "2.0x everything in front.", 18, 5, 1, "nuke", 2.0),
-            Skill("rend", "Rend", "\U0001fa78", "1.2x + bleeding wounds (3t).", 12, 5, 3, "dot", 1.2),
+            Skill("rend", "Rend", "❤", "1.2x + bleeding wounds (3t).", 12, 5, 3, "dot", 1.2),
             Skill("wind", "Second Wind", "\U0001f343", "Restore 22% HP. Still standing.", 18, 6, 5, "heal", 0.0, 0.22),
         ],
     },
@@ -1295,7 +1295,7 @@ BOSS_ARTS = {
     "Griznak":        {"art": "War Drum", "icon": "\U0001f941", "chance": 0.15, "cd": 6, "kind": "buff_atk", "amount": 3, "dur": 3},
     "Mother Mycelia": {"art": "Spore Cloud", "icon": "\U0001f344", "chance": 0.15, "cd": 6, "kind": "hex_spd", "amount": 4, "dur": 3},
     "Lord Vexmar":    {"art": "Soul Siphon", "icon": "\U0001f480", "chance": 0.15, "cd": 6, "kind": "drain", "base": 6, "per_lvl": 1.0},
-    "Cinder Maw":     {"art": "Magma Hide", "icon": "\U0001faa8", "chance": 1.0, "cd": 999, "kind": "bulwark", "threshold": 0.5, "amount": 6},
+    "Cinder Maw":     {"art": "Magma Hide", "icon": "\U0001f30b", "chance": 1.0, "cd": 999, "kind": "bulwark", "threshold": 0.5, "amount": 6},
     "Vexalyth":       {"art": "Shadow Web", "icon": "\U0001f578", "chance": 0.15, "cd": 6, "kind": "hex_dodge", "amount": 10, "dur": 3},
     "Sussurax":       {"art": "Stormcall", "icon": "\U0001f329", "chance": 0.15, "cd": 5, "kind": "strike", "mult": 0.8},
     "Vermithrax Pejorative": {"art": "Hoardfire", "icon": "\U0001f525", "chance": 0.15, "cd": 6, "kind": "strike", "mult": 1.4},
@@ -1310,7 +1310,7 @@ TYPE_ARTS = {
     "Monstrosity": {"art": "Savage Frenzy", "icon": "\U0001f9b7", "chance": 0.15, "cd": 6, "kind": "strike", "mult": 0.6},
     "Giant":      {"art": "Earthquake Stomp", "icon": "\U0001f30b", "chance": 0.14, "cd": 6, "kind": "strike", "mult": 1.0},
     "Plant":      {"art": "Ensnaring Roots", "icon": "\U0001f33f", "chance": 0.15, "cd": 6, "kind": "hex_spd", "amount": 4, "dur": 2},
-    "Beast":      {"art": "Blood Frenzy", "icon": "\U0001fa78", "chance": 1.0, "cd": 999, "kind": "rage", "threshold": 0.4, "amount": 5},
+    "Beast":      {"art": "Blood Frenzy", "icon": "❤", "chance": 1.0, "cd": 999, "kind": "rage", "threshold": 0.4, "amount": 5},
     "Humanoid":   {"art": "Dirty Trick", "icon": "\U0001f3ad", "chance": 0.15, "cd": 6, "kind": "hex_dodge", "amount": 8, "dur": 2},
 }
 
@@ -1358,11 +1358,11 @@ def boss_ability(foe: Fighter, hero: dict) -> list[str]:
     elif kind == "bulwark":
         foe.buffs["df"] = [foe.buffs.get("df", [0, 0])[0] + art["amount"], 999]
         out.append(tag)
-        out.append(f"[red]  \U0001faa8 Hide hardens like cooling slag (+{art['amount']} DEF).[/]")
+        out.append(f"[red]  \U0001f30b Hide hardens like cooling slag (+{art['amount']} DEF).[/]")
     elif kind == "rage":
         foe.buffs["atk"] = [foe.buffs.get("atk", [0, 0])[0] + art["amount"], 999]
         out.append(tag)
-        out.append(f"[red]  \U0001fa78 Bloodied and beyond pain (+{art['amount']} ATK).[/]")
+        out.append(f"[red]  ❤ Bloodied and beyond pain (+{art['amount']} ATK).[/]")
     elif kind in ("hex_spd", "hex_dodge", "hex_atk"):
         stat = {"hex_spd": "spd", "hex_dodge": "dodge", "hex_atk": "atk"}[kind]
         hero["buffs"][stat] = [hero["buffs"].get(stat, [0, 0])[0] - art["amount"], art["dur"], art["art"]]
@@ -1689,7 +1689,7 @@ def arena_panel(depth: int, room: int, boss_room: bool, turn: int, state: str) -
         if i <= cleared:
             cells.append("[green]✓[/]")
         elif i == room and not boss_room:
-            cells.append("[bold yellow]▶[/]")
+            cells.append("[bold yellow]»[/]")
         else:
             cells.append("[dim]·[/]")
     cells.append("[black on yellow] \U0001f479 [/]" if boss_room else "[dim]\U0001f479[/]")
@@ -1713,7 +1713,7 @@ def arena_panel(depth: int, room: int, boss_room: bool, turn: int, state: str) -
     else:
         goal = "  [gold1]★20✓ \U0001f45140✓[/]"
     lines.append_text(Text.from_markup(" ".join(trail) + goal))
-    return Panel(lines, title="\U0001f5fa\ufe0f Whereabouts", title_align="left", border_style=d["color"], box=box.ROUNDED)
+    return Panel(lines, title="\U0001f5fa\ufe0f Dungeon", title_align="left", border_style=d["color"], box=box.ROUNDED)
 
 
 def skills_panel(hero: dict, paused: bool, speed: float, base_tick: float, auto_pots: bool) -> Panel:
