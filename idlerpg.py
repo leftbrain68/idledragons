@@ -1668,6 +1668,9 @@ def foe_panel(foe: Fighter | None, depth: int, room: int, boss_room: bool) -> Pa
 
 def arena_panel(depth: int, room: int, boss_room: bool, turn: int, state: str) -> Panel:
     d = dungeon_for_depth(depth)
+    # Left-aligned, like every other panel: a centered block would recenter
+    # whenever its longest line changes ("Room 3/5" vs "BOSS ROOM — hide!",
+    # growing trail numbers), making the whole window drift.
     lines = Text()
     lines.append(f"{d['icon']}  {d['name']}\n", style=f"bold {d['color']}")
     lines.append(f"{d['desc']}\n", style="dim italic")
@@ -1679,7 +1682,6 @@ def arena_panel(depth: int, room: int, boss_room: bool, turn: int, state: str) -
     else:
         lines.append(f"Room {room}/{ROOMS_PER_LEVEL}", style="dim")
     lines.append(f"\nTurn {turn}", style="dim")
-    # progress map: cleared rooms, current position, boss gate
     lines.append("\n\n")
     cleared = ROOMS_PER_LEVEL if boss_room else max(0, room - 1)
     cells = []
@@ -1711,7 +1713,7 @@ def arena_panel(depth: int, room: int, boss_room: bool, turn: int, state: str) -
     else:
         goal = "  [gold1]★20✓ \U0001f45140✓[/]"
     lines.append_text(Text.from_markup(" ".join(trail) + goal))
-    return Panel(Align.center(lines), title="\U0001f5fa\ufe0f Whereabouts", border_style=d["color"], box=box.ROUNDED)
+    return Panel(lines, title="\U0001f5fa\ufe0f Whereabouts", title_align="left", border_style=d["color"], box=box.ROUNDED)
 
 
 def skills_panel(hero: dict, paused: bool, speed: float, base_tick: float, auto_pots: bool) -> Panel:
